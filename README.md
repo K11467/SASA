@@ -1,59 +1,74 @@
 # SASA Project 2
 
-这个仓库对应你们项目二当前已经推进完成的 `B + D` 前半段基础工作，重点放在两部分：
+## Overview
 
-1. 基于 `Shrake-Rupley` 打点法的 `SASA` 计算
-2. 基于复合物结构的 `ΔSASA` 界面残基标签生成
+This repository implements the structural preprocessing pipeline for protein-protein interface analysis in Project 2. The current scope covers two tasks:
 
-在这两部分之上，仓库已经进一步整理出：
+- solvent-accessible surface area (`SASA`) computation at atom, residue, and chain levels
+- interface residue labeling based on residue-level `ΔSASA`
 
-- `100` 个可直接使用的蛋白复合物数据集
-- 批量界面标签结果
-- 面向后续 `MLP` 训练的残基层主表
+On top of the core algorithms, the repository also includes a curated dataset of `100` protein complexes, batch-generated interface labels, threshold statistics, and a residue-level training table for downstream machine learning models.
 
-也就是说，这个仓库现在不只是“脚本集合”，而是一个已经能支撑后续建模工作的结构化项目目录。
+## Objectives
 
-## 项目流程
+The project uses structural exposure changes to identify interface residues in protein complexes.
+
+The workflow is:
 
 ```text
-单链/复合物 PDB
--> SASA 计算
--> 目标链 apo / holo 残基暴露面积对比
--> ΔSASA 标签生成
--> 100 个复合物批量汇总
--> 训练主表输出
--> 后续可继续接 ESM-2 / MLP
+PDB complex
+-> SASA calculation
+-> apo/holo residue exposure comparison
+-> ΔSASA computation
+-> binary interface labeling
+-> dataset aggregation
+-> model-ready residue table
 ```
 
-## 当前完成情况
+In this setting:
 
-目前已经完成并可直接复用的内容：
+- `SASA` measures how much of an atom or residue is accessible to solvent
+- `ΔSASA = SASA_apo - SASA_holo`
+- residues with sufficiently large `ΔSASA` are treated as interface residues
 
-- 第一部分 `SASA` 基础模块
-- 第二部分 `ΔSASA` 标签生成模块
-- `100` 个复合物 biological assembly 数据集
-- 全部残基标签总表
-- 不同阈值下的正负样本统计
-- 默认阈值 `ΔSASA > 2.0` 的训练主表
+## Method Summary
 
-当前最关键的结果文件：
+### 1. SASA Calculation
 
-- 复合物清单：[complex_manifest.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/complex_manifest.csv:1)
-- 全部残基标签：[interface_labels_all.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_all.csv:1)
-- 总体阈值统计：[threshold_statistics_overall.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/threshold_statistics_overall.csv:1)
-- 训练主表：[ml_residue_dataset.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/ml_residue_dataset.csv:1)
+The `SASA` module is based on the `Shrake-Rupley` rolling-sphere approximation. It:
 
-## 目录结构
+- parses atomic coordinates and residue metadata from `PDB`
+- loads sphere surface sampling points from `Dot.txt`
+- evaluates exposed surface points for each atom
+- aggregates atomic surface areas to residue and chain levels
+
+### 2. Interface Label Generation
+
+For a target chain in a protein complex:
+
+- the target chain alone is used to estimate `apo` residue `SASA`
+- the target chain together with partner chains is used to estimate `holo` residue `SASA`
+- `ΔSASA` is computed residue by residue
+- binary labels are generated under multiple thresholds
+
+Thresholds currently used in the repository:
+
+- `0.5`
+- `1.0`
+- `2.0`
+- `5.0`
+
+## Repository Layout
 
 ```text
 README.md
 requirements.txt
 data/
   raw/
-    examples/                  # 示例 PDB、Dot 点集、图片
-    pdb_complexes/             # 100 个复合物 biological assembly PDB
+    examples/                  # example PDB files, dot file, figure assets
+    pdb_complexes/             # curated protein complex dataset
   processed/
-    examples/                  # 示例运行结果
+    examples/                  # example outputs
     interface_labels_per_complex/
     threshold_stats_per_complex/
     complex_manifest.csv
@@ -62,65 +77,114 @@ data/
     threshold_statistics_by_complex.csv
     threshold_statistics_overall.csv
 docs/
-  README.md                    # 文档导航
+  README.md
   module_1_sasa.md
   module_2_delta_sasa.md
   pipeline_overview.md
   project_spec.md
-scripts/                       # 统一运行入口
-src/sasa_project/              # 核心代码包
+scripts/
+  run_sasa_example.py
+  run_delta_sasa_example.py
+  run_collect_dataset.py
+  run_batch_labeling.py
+  run_prepare_mlp_dataset.py
+src/
+  sasa_project/
 ```
 
-## 快速开始
+## Core Modules
 
-推荐在仓库根目录执行，并通过 `PYTHONPATH=src` 让脚本找到项目包。
+- [sasa.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/sasa.py:1)
+  Implements PDB parsing, dot loading, atom-level SASA computation, and residue/chain aggregation.
 
-1. 运行单结构 `SASA` 示例
+- [delta_sasa_label.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/delta_sasa_label.py:1)
+  Generates residue-level `ΔSASA` labels for a single complex.
+
+- [batch_generate_interface_labels.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/batch_generate_interface_labels.py:1)
+  Applies the labeling pipeline to the full complex dataset and produces aggregate statistics.
+
+- [prepare_mlp_dataset.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/prepare_mlp_dataset.py:1)
+  Converts aggregated labeling results into a residue-level table for downstream classification models.
+
+## Data Assets
+
+The repository currently includes:
+
+- `100` curated protein complex structures in [data/raw/pdb_complexes](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/raw/pdb_complexes)
+- a complex manifest in [complex_manifest.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/complex_manifest.csv:1)
+- residue-level aggregate labels in [interface_labels_all.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_all.csv:1)
+- overall threshold statistics in [threshold_statistics_overall.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/threshold_statistics_overall.csv:1)
+- a model-ready training table in [ml_residue_dataset.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/ml_residue_dataset.csv:1)
+
+## Usage
+
+Run commands from the repository root with `PYTHONPATH=src`.
+
+### Run the SASA example
 
 ```bash
 PYTHONPATH=src python3 scripts/run_sasa_example.py
 ```
 
-2. 运行 `ΔSASA` 界面标签示例
+### Run the single-complex ΔSASA example
 
 ```bash
 PYTHONPATH=src python3 scripts/run_delta_sasa_example.py --target-chain C --partner-chains D
 ```
 
-3. 重新生成 `100` 个复合物的批量标签
+### Regenerate batch interface labels
 
 ```bash
 PYTHONPATH=src python3 scripts/run_batch_labeling.py
 ```
 
-4. 重新整理给后续模型使用的训练主表
+### Regenerate the model-ready residue table
 
 ```bash
 PYTHONPATH=src python3 scripts/run_prepare_mlp_dataset.py --default-threshold 2.0
 ```
 
-## 代码入口
+## Outputs
 
-如果要继续扩展项目，优先从下面这些入口看起：
+Key processed outputs are:
 
-- [sasa.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/sasa.py:1)
-  负责 PDB 解析、球面打点、原子/残基/链级 SASA 聚合。
-- [delta_sasa_label.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/delta_sasa_label.py:1)
-  负责 apo/holo 对比、`ΔSASA` 计算和单复合物标签输出。
-- [batch_generate_interface_labels.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/batch_generate_interface_labels.py:1)
-  负责对整个复合物数据集批量生成标签和统计。
-- [prepare_mlp_dataset.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/prepare_mlp_dataset.py:1)
-  负责整理残基层训练主表，便于第三位同学继续接 `ESM + MLP`。
+- [data/processed/examples](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/examples)
+  Example outputs for single-structure SASA and single-complex `ΔSASA`
 
-## 文档入口
+- [data/processed/interface_labels_per_complex](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_per_complex)
+  Per-complex residue labeling results
 
-如果你是组员或老师，建议这样阅读：
+- [data/processed/threshold_stats_per_complex](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/threshold_stats_per_complex)
+  Per-complex threshold statistics
 
-- 项目整体思路：[pipeline_overview.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/pipeline_overview.md:1)
-- 第一部分说明：[module_1_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_1_sasa.md:1)
-- 第二部分说明：[module_2_delta_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_2_delta_sasa.md:1)
-- 文档导航：[docs/README.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/README.md:1)
+- [interface_labels_all.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_all.csv:1)
+  Combined residue-level labels across the dataset
 
-## 备注
+- [ml_residue_dataset.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/ml_residue_dataset.csv:1)
+  Residue-level dataset for downstream classification, with the default label set to `ΔSASA > 2.0`
 
-当前仓库运行只依赖 Python 标准库，因此 [requirements.txt](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/requirements.txt:1) 暂时没有额外三方包。后续如果接入 `ESM-2`、`PyTorch` 或绘图模块，再把依赖补进去会更合适。
+## Documentation
+
+- [docs/README.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/README.md:1)
+  Documentation index
+
+- [docs/module_1_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_1_sasa.md:1)
+  Notes for the SASA module
+
+- [docs/module_2_delta_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_2_delta_sasa.md:1)
+  Notes for the `ΔSASA` labeling module
+
+- [docs/pipeline_overview.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/pipeline_overview.md:1)
+  High-level project explanation
+
+## Current Status
+
+The repository currently provides a complete preprocessing pipeline for:
+
+- protein complex collection
+- residue-level `apo/holo SASA` computation
+- `ΔSASA`-based interface labeling
+- threshold-based statistics
+- downstream training table preparation
+
+The next natural extension is to attach sequence embeddings, such as `ESM-2`, and train residue-level classifiers on top of the generated structural labels.
