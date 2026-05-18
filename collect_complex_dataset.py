@@ -9,8 +9,7 @@ from sasa import parse_pdb
 
 
 SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
-ENTRY_URL_TEMPLATE = "https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
-PDB_URL_TEMPLATE = "https://files.rcsb.org/download/{pdb_id}.pdb"
+ASSEMBLY_PDB_GZ_URL_TEMPLATE = "https://files.rcsb.org/download/{pdb_id}.pdb1.gz"
 
 
 def run_curl_json(url, method="GET", data=None):
@@ -59,6 +58,19 @@ def download_file(url, output_path):
     )
 
 
+def download_and_extract_assembly_pdb(pdb_id, output_path):
+    gz_path = output_path.with_suffix(output_path.suffix + ".gz")
+    download_file(ASSEMBLY_PDB_GZ_URL_TEMPLATE.format(pdb_id=pdb_id), gz_path)
+    with open(output_path, "w") as out_f:
+        subprocess.run(
+            ["gunzip", "-c", str(gz_path)],
+            check=True,
+            stdout=out_f,
+            text=True,
+        )
+    gz_path.unlink(missing_ok=True)
+
+
 def build_search_query(limit):
     return {
         "query": {
@@ -78,8 +90,8 @@ def build_search_query(limit):
                     "type": "terminal",
                     "service": "text",
                     "parameters": {
-                        "attribute": "rcsb_entry_info.polymer_entity_count_protein",
-                        "operator": "greater_or_equal",
+                        "attribute": "rcsb_assembly_info.polymer_entity_instance_count_protein",
+                        "operator": "equals",
                         "value": 2,
                     },
                 },
@@ -123,17 +135,6 @@ def fetch_candidate_ids(limit):
     return [item["identifier"] for item in result.get("result_set", [])]
 
 
-def fetch_entry_metadata(pdb_id):
-    metadata = run_curl_json(ENTRY_URL_TEMPLATE.format(pdb_id=pdb_id))
-    title = metadata.get("struct", {}).get("title", "")
-    resolutions = metadata.get("rcsb_entry_info", {}).get("resolution_combined", [])
-    resolution = resolutions[0] if resolutions else ""
-    return {
-        "title": title,
-        "resolution": resolution,
-    }
-
-
 def summarize_atoms(atoms):
     chain_atom_counts = Counter()
     chain_residue_keys = defaultdict(set)
@@ -155,8 +156,7 @@ def write_manifest(rows, output_path):
             f,
             fieldnames=[
                 "pdb_id",
-                "title",
-                "resolution",
+                "assembly_id",
                 "target_chain",
                 "partner_chain",
                 "target_residue_count",
@@ -214,7 +214,7 @@ def main():
         pdb_path = output_dir / f"{pdb_id}.pdb"
         try:
             if not pdb_path.exists():
-                download_file(PDB_URL_TEMPLATE.format(pdb_id=pdb_id), pdb_path)
+                download_and_extract_assembly_pdb(pdb_id, pdb_path)
 
             atoms = parse_pdb(pdb_path)
             chain_ids, chain_atom_counts, chain_residue_counts = summarize_atoms(atoms)
@@ -231,12 +231,10 @@ def main():
                 pdb_path.unlink(missing_ok=True)
                 continue
 
-            metadata = fetch_entry_metadata(pdb_id)
             manifest_rows.append(
                 {
                     "pdb_id": pdb_id,
-                    "title": metadata["title"],
-                    "resolution": metadata["resolution"],
+                    "assembly_id": "1",
                     "target_chain": target_chain,
                     "partner_chain": partner_chain,
                     "target_residue_count": chain_residue_counts[target_chain],

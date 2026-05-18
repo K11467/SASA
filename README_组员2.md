@@ -73,3 +73,29 @@ python3 delta_sasa_label.py \
 - `2WWM_CD_threshold_statistics.csv`
 - `2WWM_OT_interface_labels.csv`
 - `2WWM_OT_threshold_statistics.csv`
+
+## 批量复合物数据集
+
+为了支持后续 `MLP` 训练，仓库中已补充一批可直接用于界面标签构造的复合物 biological assembly 数据：
+
+- 数据目录：`dataset/pdb_complexes/`
+- 清单文件：`dataset/complex_manifest.csv`
+- 当前规模：`100` 个复合物
+
+筛选原则：
+
+- 来源为 `RCSB PDB`
+- biological assembly 中蛋白链数为 `2`
+- `X-RAY DIFFRACTION`
+- 分辨率不高于 `3.0 Å`
+- 本地再次过滤，只保留每条链残基数都不少于 `20` 的样本
+
+清单中包含：
+
+- `pdb_id`
+- `assembly_id`
+- `target_chain`
+- `partner_chain`
+- 两条链的残基数
+- 两条链的原子数
+- 本地 `pdb` 文件路径
