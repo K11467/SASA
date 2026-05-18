@@ -14,7 +14,19 @@ PDB_URL_TEMPLATE = "https://files.rcsb.org/download/{pdb_id}.pdb"
 
 
 def run_curl_json(url, method="GET", data=None):
-    command = ["curl", "-s", "-L", "--retry", "3", "--retry-all-errors", url]
+    command = [
+        "curl",
+        "-s",
+        "-L",
+        "--retry",
+        "3",
+        "--retry-all-errors",
+        "--connect-timeout",
+        "15",
+        "--max-time",
+        "60",
+        url,
+    ]
     if method == "POST":
         command.extend(["-X", "POST", "-H", "Content-Type: application/json"])
         if data is not None:
@@ -26,7 +38,21 @@ def run_curl_json(url, method="GET", data=None):
 
 def download_file(url, output_path):
     subprocess.run(
-        ["curl", "-s", "-L", "--retry", "3", "--retry-all-errors", url, "-o", str(output_path)],
+        [
+            "curl",
+            "-s",
+            "-L",
+            "--retry",
+            "3",
+            "--retry-all-errors",
+            "--connect-timeout",
+            "15",
+            "--max-time",
+            "60",
+            url,
+            "-o",
+            str(output_path),
+        ],
         check=True,
         capture_output=True,
         text=True,
@@ -179,54 +205,62 @@ def main():
 
     manifest_rows = []
     rejected = 0
+    failed = 0
 
     for pdb_id in candidate_ids:
         if len(manifest_rows) >= args.count:
             break
 
         pdb_path = output_dir / f"{pdb_id}.pdb"
-        if not pdb_path.exists():
-            download_file(PDB_URL_TEMPLATE.format(pdb_id=pdb_id), pdb_path)
+        try:
+            if not pdb_path.exists():
+                download_file(PDB_URL_TEMPLATE.format(pdb_id=pdb_id), pdb_path)
 
-        atoms = parse_pdb(pdb_path)
-        chain_ids, chain_atom_counts, chain_residue_counts = summarize_atoms(atoms)
+            atoms = parse_pdb(pdb_path)
+            chain_ids, chain_atom_counts, chain_residue_counts = summarize_atoms(atoms)
 
-        if len(chain_ids) != 2:
-            rejected += 1
+            if len(chain_ids) != 2:
+                rejected += 1
+                pdb_path.unlink(missing_ok=True)
+                continue
+
+            target_chain, partner_chain = chain_ids
+
+            if chain_residue_counts[target_chain] < 20 or chain_residue_counts[partner_chain] < 20:
+                rejected += 1
+                pdb_path.unlink(missing_ok=True)
+                continue
+
+            metadata = fetch_entry_metadata(pdb_id)
+            manifest_rows.append(
+                {
+                    "pdb_id": pdb_id,
+                    "title": metadata["title"],
+                    "resolution": metadata["resolution"],
+                    "target_chain": target_chain,
+                    "partner_chain": partner_chain,
+                    "target_residue_count": chain_residue_counts[target_chain],
+                    "partner_residue_count": chain_residue_counts[partner_chain],
+                    "target_atom_count": chain_atom_counts[target_chain],
+                    "partner_atom_count": chain_atom_counts[partner_chain],
+                    "pdb_path": str(pdb_path),
+                }
+            )
+            print(
+                f"[{len(manifest_rows):03d}/{args.count}] "
+                f"{pdb_id} {target_chain}-{partner_chain} "
+                f"residues={chain_residue_counts[target_chain]}/{chain_residue_counts[partner_chain]}"
+            )
+        except Exception as exc:
+            failed += 1
             pdb_path.unlink(missing_ok=True)
+            print(f"[skip] {pdb_id} failed: {exc}")
             continue
-
-        target_chain, partner_chain = chain_ids
-
-        if chain_residue_counts[target_chain] < 20 or chain_residue_counts[partner_chain] < 20:
-            rejected += 1
-            pdb_path.unlink(missing_ok=True)
-            continue
-
-        metadata = fetch_entry_metadata(pdb_id)
-        manifest_rows.append(
-            {
-                "pdb_id": pdb_id,
-                "title": metadata["title"],
-                "resolution": metadata["resolution"],
-                "target_chain": target_chain,
-                "partner_chain": partner_chain,
-                "target_residue_count": chain_residue_counts[target_chain],
-                "partner_residue_count": chain_residue_counts[partner_chain],
-                "target_atom_count": chain_atom_counts[target_chain],
-                "partner_atom_count": chain_atom_counts[partner_chain],
-                "pdb_path": str(pdb_path),
-            }
-        )
-        print(
-            f"[{len(manifest_rows):03d}/{args.count}] "
-            f"{pdb_id} {target_chain}-{partner_chain} "
-            f"residues={chain_residue_counts[target_chain]}/{chain_residue_counts[partner_chain]}"
-        )
 
     write_manifest(manifest_rows, manifest_path)
     print(f"Collected {len(manifest_rows)} valid complexes.")
     print(f"Rejected {rejected} candidates during local filtering.")
+    print(f"Failed {failed} candidates due to download or metadata errors.")
     print(f"Manifest written to {manifest_path}")
 
     if len(manifest_rows) < args.count:
