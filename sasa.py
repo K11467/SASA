@@ -205,6 +205,10 @@ def filter_atoms_by_chain(atoms, chain_ids):
     return [atom for atom in atoms if atom.chain_id in chain_ids]
 
 
+def get_chain_ids(atoms):
+    return sorted({atom.chain_id for atom in atoms})
+
+
 def write_atom_sasa_csv(atoms, output_path):
     with open(output_path, "w", newline="") as f:
         writer = csv.writer(f)
