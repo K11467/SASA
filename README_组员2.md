@@ -50,3 +50,26 @@ python3 delta_sasa_label.py \
 ## 当前数据说明
 
 当前仓库中的 `2iww_H.pdb` 只有 `A` 链，没有复合物配对链，因此**不能直接用于真实的 ΔSASA 标签生成**。脚本在这种情况下会报错并提示当前 PDB 不适合做 holo 计算。
+
+为完成这一部分的真实标签构造，仓库中已补充官方复合物结构：
+
+- `2WWM.pdb`
+
+该结构来自 RCSB PDB，条目 `2WWM`，是一个官方标注的 `Hetero 2-mer` 蛋白复合物，适合做界面残基标签生成。
+
+当前已跑通两组链对：
+
+- `C-D`
+- `O-T`
+
+其中默认交付结果使用 `C-D` 这组链对，并生成：
+
+- `interface_labels.csv`
+- `threshold_statistics.csv`
+
+同时保留更明确命名的原始输出：
+
+- `2WWM_CD_interface_labels.csv`
+- `2WWM_CD_threshold_statistics.csv`
+- `2WWM_OT_interface_labels.csv`
+- `2WWM_OT_threshold_statistics.csv`
