@@ -94,27 +94,27 @@ src/
 
 ## 核心模块
 
-- [sasa.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/sasa.py:1)
+- [sasa.py](src/sasa_project/sasa.py)
   负责 `PDB` 解析、球面打点、原子级 `SASA` 计算，以及残基/链级汇总。
 
-- [delta_sasa_label.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/delta_sasa_label.py:1)
+- [delta_sasa_label.py](src/sasa_project/delta_sasa_label.py)
   负责单个复合物的 `ΔSASA` 计算和标签生成。
 
-- [batch_generate_interface_labels.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/batch_generate_interface_labels.py:1)
+- [batch_generate_interface_labels.py](src/sasa_project/batch_generate_interface_labels.py)
   负责对整个复合物数据集批量生成界面标签和统计结果。
 
-- [prepare_mlp_dataset.py](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/src/sasa_project/prepare_mlp_dataset.py:1)
+- [prepare_mlp_dataset.py](src/sasa_project/prepare_mlp_dataset.py)
   负责整理供后续分类模型使用的残基层训练主表。
 
 ## 数据资源
 
 当前仓库已包含以下关键数据：
 
-- `100` 个复合物结构，位于 [data/raw/pdb_complexes](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/raw/pdb_complexes)
-- 复合物清单 [complex_manifest.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/complex_manifest.csv:1)
-- 全部残基标签总表 [interface_labels_all.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_all.csv:1)
-- 总体阈值统计表 [threshold_statistics_overall.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/threshold_statistics_overall.csv:1)
-- 下游训练主表 [ml_residue_dataset.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/ml_residue_dataset.csv:1)
+- `100` 个复合物结构，位于 [data/raw/pdb_complexes](data/raw/pdb_complexes)
+- 复合物清单 [complex_manifest.csv](data/processed/complex_manifest.csv)
+- 全部残基标签总表 [interface_labels_all.csv](data/processed/interface_labels_all.csv)
+- 总体阈值统计表 [threshold_statistics_overall.csv](data/processed/threshold_statistics_overall.csv)
+- 下游训练主表 [ml_residue_dataset.csv](data/processed/ml_residue_dataset.csv)
 
 ## 使用方式
 
@@ -148,33 +148,33 @@ PYTHONPATH=src python3 scripts/run_prepare_mlp_dataset.py --default-threshold 2.
 
 仓库中的主要输出包括：
 
-- [data/processed/examples](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/examples)
+- [data/processed/examples](data/processed/examples)
   单结构 `SASA` 与单复合物 `ΔSASA` 的示例结果
 
-- [data/processed/interface_labels_per_complex](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_per_complex)
+- [data/processed/interface_labels_per_complex](data/processed/interface_labels_per_complex)
   每个复合物对应的残基标签文件
 
-- [data/processed/threshold_stats_per_complex](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/threshold_stats_per_complex)
+- [data/processed/threshold_stats_per_complex](data/processed/threshold_stats_per_complex)
   每个复合物对应的阈值统计结果
 
-- [interface_labels_all.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/interface_labels_all.csv:1)
+- [interface_labels_all.csv](data/processed/interface_labels_all.csv)
   全数据集范围内的残基标签总表
 
-- [ml_residue_dataset.csv](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/data/processed/ml_residue_dataset.csv:1)
+- [ml_residue_dataset.csv](data/processed/ml_residue_dataset.csv)
   面向后续分类模型的训练输入表，默认标签为 `ΔSASA > 2.0`
 
 ## 文档说明
 
-- [docs/README.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/README.md:1)
+- [docs/README.md](docs/README.md)
   文档导航
 
-- [docs/module_1_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_1_sasa.md:1)
+- [docs/module_1_sasa.md](docs/module_1_sasa.md)
   第一部分 `SASA` 模块说明
 
-- [docs/module_2_delta_sasa.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/module_2_delta_sasa.md:1)
+- [docs/module_2_delta_sasa.md](docs/module_2_delta_sasa.md)
   第二部分 `ΔSASA` 模块说明
 
-- [docs/pipeline_overview.md](/Users/kzh/Documents/MyWorkspace/02_Projects/SASA/docs/pipeline_overview.md:1)
+- [docs/pipeline_overview.md](docs/pipeline_overview.md)
   项目整体思路说明
 
 ## 当前状态
