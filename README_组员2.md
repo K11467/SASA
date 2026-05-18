@@ -99,3 +99,18 @@ python3 delta_sasa_label.py \
 - 两条链的残基数
 - 两条链的原子数
 - 本地 `pdb` 文件路径
+
+## 批量标签结果
+
+基于这 `100` 个复合物，仓库中已进一步生成批量 `ΔSASA` 标签结果：
+
+- 单个复合物标签目录：`dataset/interface_labels_per_complex/`
+- 单个复合物阈值统计目录：`dataset/threshold_stats_per_complex/`
+- 全部残基汇总表：`dataset/interface_labels_all.csv`
+- 按复合物汇总的阈值统计：`dataset/threshold_statistics_by_complex.csv`
+- 全数据集总体阈值统计：`dataset/threshold_statistics_overall.csv`
+
+当前汇总表规模：
+
+- `100` 个复合物
+- `18050` 个目标链残基样本
