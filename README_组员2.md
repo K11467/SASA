@@ -114,3 +114,36 @@ python3 delta_sasa_label.py \
 
 - `100` 个复合物
 - `18050` 个目标链残基样本
+
+## 给后续 MLP 的直接输入
+
+为了方便第三位同学直接对接建模，仓库中进一步整理了一个更适合机器学习读取的残基层主表：
+
+- 输出文件：`dataset/ml_residue_dataset.csv`
+- 生成脚本：`prepare_mlp_dataset.py`
+
+该表保留了：
+
+- `pdb_id`
+- `target_chain`
+- `partner_chain`
+- `chain_id`
+- `residue_id`
+- `insertion_code`
+- `residue_name`
+- `sasa_apo`
+- `sasa_holo`
+- `delta_sasa`
+- 四个阈值下的标签列
+
+同时额外提供：
+
+- `sample_id`：每个残基样本的唯一标识
+- `label`：默认用于训练的二分类标签
+- `label_threshold`：当前默认标签对应的阈值
+
+默认使用 `ΔSASA > 2.0` 作为训练标签，但如果后续需要切换到 `0.5 / 1.0 / 5.0`，可以直接重新运行：
+
+```bash
+python3 prepare_mlp_dataset.py --default-threshold 1.0
+```
