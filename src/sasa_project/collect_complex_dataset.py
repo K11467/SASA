@@ -5,7 +5,8 @@ import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from sasa import parse_pdb
+from .paths import PDB_COMPLEX_DIR, PROCESSED_DATA_DIR
+from .sasa import parse_pdb
 
 
 SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
@@ -185,12 +186,12 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="dataset/pdb_complexes",
+        default=str(PDB_COMPLEX_DIR),
         help="Directory for downloaded PDB files.",
     )
     parser.add_argument(
         "--manifest",
-        default="dataset/complex_manifest.csv",
+        default=str(PROCESSED_DATA_DIR / "complex_manifest.csv"),
         help="Output CSV for collected complex metadata.",
     )
     args = parser.parse_args()

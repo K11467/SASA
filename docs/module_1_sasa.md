@@ -3,16 +3,16 @@
 本模块基于 Shrake-Rupley 打点法实现 SASA 计算。
 
 输入：
-- `2iww_H.pdb` 或其他 PDB 文件
-- `Dot.txt` 球面采样点文件
+- `data/raw/examples/2iww_H.pdb` 或其他 PDB 文件
+- `data/raw/examples/Dot.txt` 球面采样点文件
 - 溶剂探针半径，默认 `1.4`
 
 输出：
-- `atom_sasa.csv`：原子级 SASA
-- `residue_sasa.csv`：残基级 SASA
-- `chain_sasa.csv`：链级 SASA
+- `data/processed/examples/atom_sasa.csv`：原子级 SASA
+- `data/processed/examples/residue_sasa.csv`：残基级 SASA
+- `data/processed/examples/chain_sasa.csv`：链级 SASA
 
-当前脚本在 `code.py` 中，主要包括：
+当前核心代码在 `src/sasa_project/sasa.py` 中，主要包括：
 - `Atom`
 - `parse_pdb()`
 - `load_dots()`
@@ -27,7 +27,7 @@
 运行方式：
 
 ```bash
-python code.py
+PYTHONPATH=src python3 scripts/run_sasa_example.py
 ```
 
 校验项：

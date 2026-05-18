@@ -1,7 +1,8 @@
 import argparse
 import csv
 
-from sasa import (
+from .paths import EXAMPLE_DATA_DIR, PROCESSED_DATA_DIR
+from .sasa import (
     aggregate_residue_sasa,
     calculate_sasa,
     filter_atoms_by_chain,
@@ -135,14 +136,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate interface residue labels from apo/holo delta SASA."
     )
-    parser.add_argument("--pdb", required=True, help="Complex PDB file path.")
+    parser.add_argument(
+        "--pdb",
+        default=str(EXAMPLE_DATA_DIR / "2WWM.pdb"),
+        help="Complex PDB file path.",
+    )
     parser.add_argument("--target-chain", required=True, help="Target chain, e.g. A.")
     parser.add_argument(
         "--partner-chains",
         default="",
         help="Partner chains separated by commas. Leave empty to use all non-target chains.",
     )
-    parser.add_argument("--dot-file", default="Dot.txt", help="Sphere dot file path.")
+    parser.add_argument(
+        "--dot-file",
+        default=str(EXAMPLE_DATA_DIR / "Dot.txt"),
+        help="Sphere dot file path.",
+    )
     parser.add_argument(
         "--solvent-radius", type=float, default=1.4, help="Solvent probe radius."
     )
@@ -153,12 +162,12 @@ def main():
     )
     parser.add_argument(
         "--labels-output",
-        default="interface_labels.csv",
+        default=str(PROCESSED_DATA_DIR / "examples" / "interface_labels.csv"),
         help="Per-residue delta SASA labels output CSV.",
     )
     parser.add_argument(
         "--summary-output",
-        default="threshold_statistics.csv",
+        default=str(PROCESSED_DATA_DIR / "examples" / "threshold_statistics.csv"),
         help="Threshold positive/negative summary CSV.",
     )
     args = parser.parse_args()

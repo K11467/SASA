@@ -2,14 +2,15 @@ import argparse
 import csv
 from pathlib import Path
 
-from delta_sasa_label import (
+from .delta_sasa_label import (
     build_interface_rows,
     parse_thresholds,
     summarize_thresholds,
     write_interface_labels,
     write_threshold_summary,
 )
-from sasa import aggregate_residue_sasa, calculate_sasa, filter_atoms_by_chain, load_dots, parse_pdb
+from .paths import EXAMPLE_DATA_DIR, PROCESSED_DATA_DIR
+from .sasa import aggregate_residue_sasa, calculate_sasa, filter_atoms_by_chain, load_dots, parse_pdb
 
 
 def compute_complex_labels(pdb_path, target_chain, partner_chain, dot_file, solvent_radius, thresholds):
@@ -93,10 +94,14 @@ def main():
     )
     parser.add_argument(
         "--manifest",
-        default="dataset/complex_manifest.csv",
+        default=str(PROCESSED_DATA_DIR / "complex_manifest.csv"),
         help="Manifest CSV produced by collect_complex_dataset.py",
     )
-    parser.add_argument("--dot-file", default="Dot.txt", help="Sphere dot file path.")
+    parser.add_argument(
+        "--dot-file",
+        default=str(EXAMPLE_DATA_DIR / "Dot.txt"),
+        help="Sphere dot file path.",
+    )
     parser.add_argument(
         "--solvent-radius", type=float, default=1.4, help="Solvent probe radius."
     )
@@ -107,27 +112,27 @@ def main():
     )
     parser.add_argument(
         "--per-complex-dir",
-        default="dataset/interface_labels_per_complex",
+        default=str(PROCESSED_DATA_DIR / "interface_labels_per_complex"),
         help="Directory for per-complex label CSV files.",
     )
     parser.add_argument(
         "--per-complex-threshold-dir",
-        default="dataset/threshold_stats_per_complex",
+        default=str(PROCESSED_DATA_DIR / "threshold_stats_per_complex"),
         help="Directory for per-complex threshold summary CSV files.",
     )
     parser.add_argument(
         "--aggregate-labels",
-        default="dataset/interface_labels_all.csv",
+        default=str(PROCESSED_DATA_DIR / "interface_labels_all.csv"),
         help="Output CSV for all residue labels.",
     )
     parser.add_argument(
         "--aggregate-thresholds",
-        default="dataset/threshold_statistics_by_complex.csv",
+        default=str(PROCESSED_DATA_DIR / "threshold_statistics_by_complex.csv"),
         help="Output CSV for threshold stats grouped by complex.",
     )
     parser.add_argument(
         "--overall-thresholds",
-        default="dataset/threshold_statistics_overall.csv",
+        default=str(PROCESSED_DATA_DIR / "threshold_statistics_overall.csv"),
         help="Output CSV for threshold stats over the whole dataset.",
     )
     args = parser.parse_args()

@@ -2,6 +2,8 @@ import csv
 import math
 from collections import defaultdict
 
+from .paths import EXAMPLE_DATA_DIR, PROCESSED_DATA_DIR
+
 
 VDW_RADII = {
     "C": 1.77,
@@ -282,8 +284,9 @@ def write_chain_sasa_csv(chain_sasa, output_path):
 
 
 def main():
-    pdb_file = "2iww_H.pdb"
-    dot_file = "Dot.txt"
+    examples_dir = PROCESSED_DATA_DIR / "examples"
+    pdb_file = EXAMPLE_DATA_DIR / "2iww_H.pdb"
+    dot_file = EXAMPLE_DATA_DIR / "Dot.txt"
     solvent_radius = 1.4
 
     print("Parsing input files...")
@@ -296,9 +299,10 @@ def main():
     residue_sasa = aggregate_residue_sasa(atoms)
     chain_sasa = aggregate_chain_sasa(atoms)
 
-    write_atom_sasa_csv(atoms, "atom_sasa.csv")
-    write_residue_sasa_csv(residue_sasa, "residue_sasa.csv")
-    write_chain_sasa_csv(chain_sasa, "chain_sasa.csv")
+    examples_dir.mkdir(parents=True, exist_ok=True)
+    write_atom_sasa_csv(atoms, examples_dir / "atom_sasa.csv")
+    write_residue_sasa_csv(residue_sasa, examples_dir / "residue_sasa.csv")
+    write_chain_sasa_csv(chain_sasa, examples_dir / "chain_sasa.csv")
 
     atom_sum = sum(atom.sasa for atom in atoms)
     residue_sum = sum(residue_sasa.values())
@@ -309,7 +313,7 @@ def main():
     print(f"Chain count: {len(chain_sasa)}")
     print(f"Check total == sum(atom.sasa): {atom_sum:.6f}")
     print(f"Check total == sum(residue_sasa): {residue_sum:.6f}")
-    print("Wrote atom_sasa.csv, residue_sasa.csv, chain_sasa.csv")
+    print(f"Wrote outputs to {examples_dir}")
 
 
 if __name__ == "__main__":

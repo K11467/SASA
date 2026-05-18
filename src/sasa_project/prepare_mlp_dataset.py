@@ -1,6 +1,8 @@
 import argparse
 import csv
 
+from .paths import PROCESSED_DATA_DIR
+
 
 def threshold_to_column_name(threshold):
     return f"label_gt_{threshold:g}"
@@ -20,12 +22,12 @@ def main():
     )
     parser.add_argument(
         "--input",
-        default="dataset/interface_labels_all.csv",
+        default=str(PROCESSED_DATA_DIR / "interface_labels_all.csv"),
         help="Aggregate residue-level interface label table.",
     )
     parser.add_argument(
         "--output",
-        default="dataset/ml_residue_dataset.csv",
+        default=str(PROCESSED_DATA_DIR / "ml_residue_dataset.csv"),
         help="Output CSV for downstream model training.",
     )
     parser.add_argument(
