@@ -1,2 +1,8 @@
-# 当前项目使用 Python 标准库即可运行。
-# 如果后续接入 ESM-2、PyTorch 或绘图模块，可在这里补充依赖。
+# Core SASA / delta-SASA preprocessing uses only the Python standard library.
+#
+# Optional dependencies for the B + D extension:
+# - torch: train MLP / GCN baselines and run ESM-2 models.
+# - transformers: load HuggingFace ESM-2 models.
+#
+# Install them only when you need ESM embeddings or neural model training, for example:
+# pip install torch transformers

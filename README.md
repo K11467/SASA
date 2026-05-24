@@ -187,4 +187,19 @@ PYTHONPATH=src python3 scripts/run_prepare_mlp_dataset.py --default-threshold 2.
 - 多阈值统计
 - 残基层训练主表整理
 
-后续可以在此基础上继续接入序列特征，例如 `ESM-2`，并训练残基级分类模型。
+在 B + D 扩展思路下，仓库进一步补充了以下入口：
+
+```bash
+# 1. 提取目标链残基层 ESM-2 embedding
+PYTHONPATH=src python3 scripts/run_extract_esm_embeddings.py --max-complexes 5
+
+# 2. 合并 ΔSASA 弱监督标签、SASA 特征、残基坐标和 ESM 特征
+PYTHONPATH=src python3 scripts/run_build_multimodal_dataset.py --label-threshold 2.0
+
+# 3. 训练 MLP 或轻量 GCN，并做特征消融
+PYTHONPATH=src python3 scripts/run_train_interface_model.py --model mlp --feature-set sasa
+PYTHONPATH=src python3 scripts/run_train_interface_model.py --model mlp --feature-set esm
+PYTHONPATH=src python3 scripts/run_train_interface_model.py --model gcn --feature-set esm_sasa
+```
+
+其中 `ΔSASA` 只用于生成弱监督标签，默认不会作为模型输入特征，避免信息泄漏。
