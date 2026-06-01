@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .paths import PROCESSED_DATA_DIR
 from .residue_features import (
+    extract_structural_features,
     residue_coordinate_map,
     residue_key_from_row,
     residue_sample_id,
@@ -91,6 +92,7 @@ def main():
     ]
     manifest_by_key = load_manifest(args.manifest)
     coordinate_cache = {}
+    structural_feature_cache = {}
 
     output_rows = []
     skipped_missing_embeddings = 0
@@ -113,14 +115,18 @@ def main():
         if complex_key not in coordinate_cache:
             manifest_row = manifest_by_key[complex_key]
             pdb_path = resolve_pdb_path(manifest_row["pdb_path"])
-            coordinate_cache[complex_key] = residue_coordinate_map(
-                parse_pdb(pdb_path),
+            atoms = parse_pdb(pdb_path)
+            coordinate_cache[complex_key] = residue_coordinate_map(atoms, row["target_chain"])
+            structural_feature_cache[complex_key] = extract_structural_features(
+                atoms,
                 row["target_chain"],
             )
 
-        coord = coordinate_cache[complex_key].get(residue_key_from_row(row))
+        residue_key = residue_key_from_row(row)
+        coord = coordinate_cache[complex_key].get(residue_key)
         if coord is None:
             raise ValueError(f"Missing residue coordinate for sample {sample_id}")
+        structural_features = structural_feature_cache[complex_key].get(residue_key, {})
 
         output_row = {
             "sample_id": sample_id,
@@ -139,6 +145,13 @@ def main():
             "delta_sasa": row["delta_sasa"],
             "label": row[label_column],
             "label_threshold": f"{args.label_threshold:g}",
+            "sin_phi": f"{structural_features.get('sin_phi', 0.0):.8f}",
+            "cos_phi": f"{structural_features.get('cos_phi', 1.0):.8f}",
+            "sin_psi": f"{structural_features.get('sin_psi', 0.0):.8f}",
+            "cos_psi": f"{structural_features.get('cos_psi', 1.0):.8f}",
+            "hse_up": f"{structural_features.get('hse_up', 0.0):.1f}",
+            "hse_dn": f"{structural_features.get('hse_dn', 0.0):.1f}",
+            "hydrophobicity": f"{structural_features.get('hydrophobicity', 0.0):.4f}",
         }
 
         for column in embedding_columns:
@@ -163,6 +176,13 @@ def main():
         "delta_sasa",
         "label",
         "label_threshold",
+        "sin_phi",
+        "cos_phi",
+        "sin_psi",
+        "cos_psi",
+        "hse_up",
+        "hse_dn",
+        "hydrophobicity",
     ]
     fieldnames.extend(embedding_columns)
 

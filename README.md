@@ -2,34 +2,27 @@
 
 ## 项目简介
 
-本仓库用于实现项目二中与蛋白质-蛋白质相互作用界面相关的结构预处理流程，当前重点包括两部分：
-
-- 基于结构的 `SASA` 计算
-- 基于残基层 `ΔSASA` 的界面标签生成
-
-在核心算法之外，仓库还整理了可直接复用的复合物数据集、批量标签结果、阈值统计，以及供后续分类模型使用的残基层训练主表。
-
-## 项目目标
-
-本项目的目标是利用蛋白复合物在结合前后表面暴露程度的变化，识别可能参与相互作用的界面残基。
+本仓库用于实现项目二中与蛋白质-蛋白质相互作用界面相关的结构预处理与下游预测流程。项目从 PDB 复合物结构出发，先实现自研 `SASA` 计算，再通过 `ΔSASA` 生成界面残基弱监督标签，最后结合 ESM-2 残基层表征和结构特征训练界面残基预测模型。
 
 整体流程如下：
 
 ```text
 PDB 复合物结构
--> SASA 计算
--> 目标链 apo / holo 暴露面积对比
--> ΔSASA 计算
--> 界面残基二分类标签生成
--> 数据集汇总
--> 下游模型训练输入表
+-> 自研 SASA 计算
+-> 目标链 apo / holo SASA 对比
+-> ΔSASA 弱监督标签生成
+-> ESM-2 残基层 embedding 提取
+-> SASA / ESM / 坐标多模态数据融合
+-> MLP / GCN 界面残基预测
+-> 特征消融与阈值敏感性分析
 ```
 
 其中：
 
-- `SASA` 表示溶剂可及表面积
-- `ΔSASA = SASA_apo - SASA_holo`
-- 当某个残基在结合后被遮挡较多时，其 `ΔSASA` 会变大，更可能是界面残基
+- `SASA` 表示溶剂可及表面积。
+- `ΔSASA = SASA_apo - SASA_holo`。
+- 当某个残基在结合后被遮挡较多时，其 `ΔSASA` 会变大，更可能是蛋白质相互作用界面残基。
+- `ΔSASA` 默认只用于生成弱监督标签，不作为模型输入特征，避免信息泄漏。
 
 ## 方法概述
 
@@ -37,26 +30,48 @@ PDB 复合物结构
 
 `SASA` 模块基于 `Shrake-Rupley` 打点法实现，主要完成：
 
-- 解析 `PDB` 中的原子坐标与残基信息
-- 读取球面采样点文件 `Dot.txt`
-- 判断每个原子的表面采样点是否被邻近原子遮挡
-- 将原子级表面积聚合到残基和链两个层面
+- 解析 `PDB` 中的原子坐标、链 ID、残基编号和残基名称。
+- 读取球面采样点文件 `Dot.txt`。
+- 判断每个原子的表面采样点是否被邻近原子遮挡。
+- 计算原子级 `SASA`。
+- 将原子级结果聚合到残基级和链级。
 
 ### 2. ΔSASA 标签生成
 
 对于复合物中的目标链：
 
-- 仅保留目标链，计算 `apo` 状态残基层 `SASA`
-- 保留目标链及其配对链，计算 `holo` 状态残基层 `SASA`
-- 逐残基计算 `ΔSASA`
-- 在多个阈值下生成界面标签
+- 仅保留目标链，计算 `apo` 状态残基层 `SASA`。
+- 保留目标链及其配对链，计算 `holo` 状态残基层 `SASA`。
+- 逐残基计算 `ΔSASA`。
+- 在多个阈值下生成界面残基二分类标签。
 
-当前仓库中使用的阈值为：
+当前常用阈值包括：
 
 - `0.5`
 - `1.0`
 - `2.0`
 - `5.0`
+
+### 3. 多模态界面预测
+
+模块 3 在前两部分基础上加入 ESM-2 蛋白语言模型特征，形成残基层多模态训练数据：
+
+- `sasa_apo`
+- `sasa_holo`
+- 残基坐标
+- ESM-2 embedding
+- 由 `ΔSASA` 规则生成的弱监督标签
+
+下游模型支持：
+
+- `MLP`：普通多层感知机，用于快速 baseline 和特征消融。
+- `GCN`：基于残基空间距离构图的轻量图卷积网络。
+
+支持的特征组合：
+
+- `sasa`：只使用 `sasa_apo + sasa_holo`
+- `esm`：只使用 ESM-2 embedding
+- `esm_sasa`：使用 ESM-2 embedding + SASA 特征
 
 ## 仓库结构
 
@@ -65,141 +80,286 @@ README.md
 requirements.txt
 data/
   raw/
-    examples/                  # 示例 PDB、Dot 点集、图片等原始文件
-    pdb_complexes/             # 复合物 PDB 数据集
+    examples/
+    pdb_complexes/
   processed/
-    examples/                  # 示例输出
+    examples/
     interface_labels_per_complex/
     threshold_stats_per_complex/
     complex_manifest.csv
     interface_labels_all.csv
     ml_residue_dataset.csv
+    esm_residue_embeddings*.csv
+    multimodal_residue_dataset*.csv
     threshold_statistics_by_complex.csv
     threshold_statistics_overall.csv
 docs/
   README.md
   module_1_sasa.md
   module_2_delta_sasa.md
+  module_3.md
   pipeline_overview.md
   project_spec.md
+  故事线.md
+  项目二.md
+  自研SASA与FreeSASA对照及DeltaSASA方案.md
+  assets/
 scripts/
-  run_sasa_example.py
-  run_delta_sasa_example.py
-  run_collect_dataset.py
-  run_batch_labeling.py
-  run_prepare_mlp_dataset.py
+  run_*.py
 src/
   sasa_project/
+    *.py
 ```
 
-## 核心模块
+## 目录说明
 
-- [sasa.py](src/sasa_project/sasa.py)
-  负责 `PDB` 解析、球面打点、原子级 `SASA` 计算，以及残基/链级汇总。
+| 路径 | 作用 |
+|---|---|
+| `.git/` | Git 版本管理目录，记录提交历史、分支和暂存区。 |
+| `.gitignore` | 指定不需要纳入 Git 跟踪的文件。 |
+| `data/` | 数据目录，包含原始 PDB、示例文件和处理后的 CSV。 |
+| `data/raw/` | 原始输入数据。 |
+| `data/raw/examples/` | 示例 PDB、`Dot.txt` 球面采样点和示意图片。 |
+| `data/raw/pdb_complexes/` | 批量复合物 PDB 数据集。 |
+| `data/processed/` | 程序生成的中间结果和最终训练数据。 |
+| `data/processed/examples/` | 单结构 `SASA` 和单复合物 `ΔSASA` 的示例输出。 |
+| `data/processed/interface_labels_per_complex/` | 每个复合物单独的残基界面标签 CSV。 |
+| `data/processed/threshold_stats_per_complex/` | 每个复合物在不同阈值下的标签统计。 |
+| `docs/` | 项目文档、模块说明、实验分析和报告材料。 |
+| `docs/assets/` | 文档中使用的图片和实验图。 |
+| `scripts/` | 命令行运行入口。大多数脚本只负责调用 `src/sasa_project/` 中的主逻辑。 |
+| `src/sasa_project/` | 项目核心源码。 |
+| `__pycache__/` | Python 自动生成的字节码缓存，可忽略。 |
 
-- [delta_sasa_label.py](src/sasa_project/delta_sasa_label.py)
-  负责单个复合物的 `ΔSASA` 计算和标签生成。
+## 核心数据文件
 
-- [batch_generate_interface_labels.py](src/sasa_project/batch_generate_interface_labels.py)
-  负责对整个复合物数据集批量生成界面标签和统计结果。
+| 文件 | 作用 |
+|---|---|
+| `data/processed/complex_manifest.csv` | 复合物清单，记录 PDB ID、目标链、配对链和文件路径等信息。 |
+| `data/processed/interface_labels_all.csv` | 所有复合物合并后的残基层界面标签总表。 |
+| `data/processed/ml_residue_dataset.csv` | 早期面向 MLP 的残基层训练主表。 |
+| `data/processed/esm_residue_embeddings.csv` | ESM-2 小模型或历史版本残基 embedding。 |
+| `data/processed/esm_residue_embeddings_650m.csv` | ESM-2 650M 模型提取的残基层 embedding。 |
+| `data/processed/multimodal_residue_dataset.csv` | 多模态残基层训练数据表。 |
+| `data/processed/multimodal_residue_dataset_650m.csv` | 使用 ESM-2 650M embedding 构建的多模态训练数据表。 |
+| `data/processed/multimodal_residue_dataset_t0_5.csv` | 使用 `ΔSASA > 0.5` 标签阈值的数据集。 |
+| `data/processed/multimodal_residue_dataset_t1_0.csv` | 使用 `ΔSASA > 1.0` 标签阈值的数据集。 |
+| `data/processed/multimodal_residue_dataset_t5_0.csv` | 使用 `ΔSASA > 5.0` 标签阈值的数据集。 |
+| `data/processed/threshold_statistics_by_complex.csv` | 每个复合物的阈值统计汇总。 |
+| `data/processed/threshold_statistics_overall.csv` | 全数据集整体阈值统计。 |
 
-- [prepare_mlp_dataset.py](src/sasa_project/prepare_mlp_dataset.py)
-  负责整理供后续分类模型使用的残基层训练主表。
+## 源码文件说明
 
-## 数据资源
+| 文件 | 作用 |
+|---|---|
+| `src/sasa_project/__init__.py` | 将 `sasa_project` 标记为 Python 包。 |
+| `src/sasa_project/paths.py` | 管理项目根目录、数据目录和示例目录等路径。 |
+| `src/sasa_project/sasa.py` | 模块 1 核心。负责 PDB 解析、球面打点、原子级 `SASA` 计算、残基级和链级汇总。 |
+| `src/sasa_project/delta_sasa_label.py` | 模块 2 核心。负责单个复合物的 `apo / holo SASA` 对比、`ΔSASA` 计算和界面标签生成。 |
+| `src/sasa_project/batch_generate_interface_labels.py` | 批量处理复合物清单，生成所有复合物的界面标签和阈值统计。 |
+| `src/sasa_project/collect_complex_dataset.py` | 从 RCSB / PDB 查询、下载或整理复合物结构，并生成 `complex_manifest.csv`。 |
+| `src/sasa_project/prepare_mlp_dataset.py` | 将界面标签整理成早期下游分类模型可用的残基层训练表。 |
+| `src/sasa_project/residue_features.py` | 残基层公共工具，包括三字母氨基酸转一字母序列、残基提取、`sample_id` 生成、残基坐标提取和空间距离构图。 |
+| `src/sasa_project/extract_esm_embeddings.py` | 调用 ESM-2 模型，为目标链每个残基提取语言模型 embedding。 |
+| `src/sasa_project/build_multimodal_dataset.py` | 合并 `ΔSASA` 标签、SASA 特征、残基坐标和 ESM embedding，生成多模态训练表。 |
+| `src/sasa_project/train_interface_model.py` | 训练界面残基预测模型，支持 `MLP` 和轻量 `GCN`，并输出 Accuracy、Precision、Recall、F1、AUROC、AUPRC。 |
 
-当前仓库已包含以下关键数据：
+## 脚本入口说明
 
-- `100` 个复合物结构，位于 [data/raw/pdb_complexes](data/raw/pdb_complexes)
-- 复合物清单 [complex_manifest.csv](data/processed/complex_manifest.csv)
-- 全部残基标签总表 [interface_labels_all.csv](data/processed/interface_labels_all.csv)
-- 总体阈值统计表 [threshold_statistics_overall.csv](data/processed/threshold_statistics_overall.csv)
-- 下游训练主表 [ml_residue_dataset.csv](data/processed/ml_residue_dataset.csv)
+| 脚本 | 作用 |
+|---|---|
+| `scripts/run_sasa_example.py` | 运行单个示例 PDB 的 `SASA` 计算。 |
+| `scripts/run_delta_sasa_example.py` | 运行单个复合物的 `ΔSASA` 标签生成示例。 |
+| `scripts/run_collect_dataset.py` | 收集或下载复合物数据。 |
+| `scripts/run_batch_labeling.py` | 批量生成所有复合物的界面标签。 |
+| `scripts/run_prepare_mlp_dataset.py` | 生成早期 MLP 训练表。 |
+| `scripts/run_extract_esm_embeddings.py` | 提取 ESM-2 残基 embedding。 |
+| `scripts/run_build_multimodal_dataset.py` | 构建 SASA + ESM + 标签的多模态训练数据集。 |
+| `scripts/run_train_interface_model.py` | 训练 MLP / GCN 界面预测模型。 |
+| `scripts/run_freesasa_comparison.py` | 在单个示例上对比自研 SASA 与 FreeSASA。 |
+| `scripts/run_batch_freesasa_comparison.py` | 批量对比自研 SASA 与 FreeSASA，并生成验证图。 |
+
+## 环境安装
+
+建议在仓库根目录创建虚拟环境后安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+如果需要运行 ESM-2 或 GPU 训练，还需要安装兼容 CUDA 的 PyTorch，并安装 `transformers`：
+
+```bash
+pip install transformers
+pip install --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
+
+Windows PowerShell 下运行脚本前，可以设置：
+
+```powershell
+$env:PYTHONPATH="src"
+```
+
+Linux / macOS / Git Bash 下可以使用：
+
+```bash
+export PYTHONPATH=src
+```
 
 ## 使用方式
 
-建议在仓库根目录执行以下命令，并通过 `PYTHONPATH=src` 让脚本找到项目包。
-
-### 运行 SASA 示例
+### 1. 运行 SASA 示例
 
 ```bash
-PYTHONPATH=src python3 scripts/run_sasa_example.py
+PYTHONPATH=src python scripts/run_sasa_example.py
 ```
 
-### 运行单个复合物的 ΔSASA 标签示例
+Windows PowerShell：
+
+```powershell
+$env:PYTHONPATH="src"
+python scripts/run_sasa_example.py
+```
+
+### 2. 运行单个复合物的 ΔSASA 标签示例
 
 ```bash
-PYTHONPATH=src python3 scripts/run_delta_sasa_example.py --target-chain C --partner-chains D
+PYTHONPATH=src python scripts/run_delta_sasa_example.py --target-chain C --partner-chains D
 ```
 
-### 批量生成复合物界面标签
+### 3. 批量生成复合物界面标签
 
 ```bash
-PYTHONPATH=src python3 scripts/run_batch_labeling.py
+PYTHONPATH=src python scripts/run_batch_labeling.py
 ```
 
-### 生成下游模型使用的训练主表
+### 4. 生成早期 MLP 训练主表
 
 ```bash
-PYTHONPATH=src python3 scripts/run_prepare_mlp_dataset.py --default-threshold 2.0
+PYTHONPATH=src python scripts/run_prepare_mlp_dataset.py --default-threshold 2.0
 ```
 
-## 输出结果
+### 5. 提取 ESM-2 残基 embedding
 
-仓库中的主要输出包括：
+```bash
+PYTHONPATH=src python scripts/run_extract_esm_embeddings.py \
+  --model-name facebook/esm2_t33_650M_UR50D \
+  --device cuda \
+  --output data/processed/esm_residue_embeddings_650m.csv
+```
 
-- [data/processed/examples](data/processed/examples)
-  单结构 `SASA` 与单复合物 `ΔSASA` 的示例结果
+### 6. 构建多模态训练数据集
 
-- [data/processed/interface_labels_per_complex](data/processed/interface_labels_per_complex)
-  每个复合物对应的残基标签文件
+```bash
+PYTHONPATH=src python scripts/run_build_multimodal_dataset.py \
+  --embeddings data/processed/esm_residue_embeddings_650m.csv \
+  --label-threshold 2.0 \
+  --output data/processed/multimodal_residue_dataset_650m.csv
+```
 
-- [data/processed/threshold_stats_per_complex](data/processed/threshold_stats_per_complex)
-  每个复合物对应的阈值统计结果
+### 7. 训练界面残基预测模型
 
-- [interface_labels_all.csv](data/processed/interface_labels_all.csv)
-  全数据集范围内的残基标签总表
+SASA-only baseline：
 
-- [ml_residue_dataset.csv](data/processed/ml_residue_dataset.csv)
-  面向后续分类模型的训练输入表，默认标签为 `ΔSASA > 2.0`
+```bash
+PYTHONPATH=src python scripts/run_train_interface_model.py \
+  --input data/processed/multimodal_residue_dataset_650m.csv \
+  --model mlp \
+  --feature-set sasa \
+  --epochs 30 \
+  --device cuda
+```
+
+ESM-only baseline：
+
+```bash
+PYTHONPATH=src python scripts/run_train_interface_model.py \
+  --input data/processed/multimodal_residue_dataset_650m.csv \
+  --model mlp \
+  --feature-set esm \
+  --epochs 30 \
+  --device cuda
+```
+
+ESM + SASA：
+
+```bash
+PYTHONPATH=src python scripts/run_train_interface_model.py \
+  --input data/processed/multimodal_residue_dataset_650m.csv \
+  --model mlp \
+  --feature-set esm_sasa \
+  --epochs 30 \
+  --device cuda
+```
+
+GCN + ESM + SASA：
+
+```bash
+PYTHONPATH=src python scripts/run_train_interface_model.py \
+  --input data/processed/multimodal_residue_dataset_650m.csv \
+  --model gcn \
+  --feature-set esm_sasa \
+  --epochs 30 \
+  --device cuda
+```
+
+## 当前实验结果摘要
+
+使用全量 `100` 个复合物、`18050` 个残基样本，默认标签为：
+
+```text
+label = 1 if ΔSASA > 2.0 else 0
+```
+
+模块 3 中记录的主要结果如下：
+
+| Setting | Feature dim | Test F1 | Test AUROC | Test AUPRC |
+|---|---:|---:|---:|---:|
+| MLP + SASA only | 2 | 0.8754 | 0.9439 | 0.9136 |
+| MLP + ESM-2 650M only | 1280 | 0.6480 | 0.8736 | 0.7242 |
+| MLP + ESM-2 650M + SASA | 1282 | 0.6642 | 0.8767 | 0.7389 |
+| GCN + ESM-2 650M + SASA | 1282 | 0.6025 | 0.8368 | 0.6156 |
+
+结果说明：
+
+- `ESM + SASA` 相比 `ESM only` 有提升，说明几何暴露信息可以补充序列语义信息。
+- `SASA only` 表现最强，主要因为标签由 `ΔSASA` 规则生成，`sasa_apo / sasa_holo` 与标签机制高度相关。
+- 当前 GCN 是轻量结构感知 baseline，尚未加入距离权重、attention、Graph Transformer 或等变 GNN。
+
+更完整的实验说明见 [docs/module_3.md](docs/module_3.md)。
 
 ## 文档说明
 
-- [docs/README.md](docs/README.md)
-  文档导航
-
-- [docs/module_1_sasa.md](docs/module_1_sasa.md)
-  第一部分 `SASA` 模块说明
-
-- [docs/module_2_delta_sasa.md](docs/module_2_delta_sasa.md)
-  第二部分 `ΔSASA` 模块说明
-
-- [docs/pipeline_overview.md](docs/pipeline_overview.md)
-  项目整体思路说明
+| 文档 | 作用 |
+|---|---|
+| `docs/README.md` | 文档导航。 |
+| `docs/module_1_sasa.md` | 模块 1：自研 `SASA` 计算说明。 |
+| `docs/module_2_delta_sasa.md` | 模块 2：`ΔSASA` 标签生成说明。 |
+| `docs/module_3.md` | 模块 3：ESM-2 + SASA 多模态界面预测实验。 |
+| `docs/pipeline_overview.md` | 项目整体流程和思路说明。 |
+| `docs/project_spec.md` | 项目规格和设计说明。 |
+| `docs/故事线.md` | 项目汇报或论文叙事逻辑。 |
+| `docs/自研SASA与FreeSASA对照及DeltaSASA方案.md` | 自研 SASA、FreeSASA 对照与 ΔSASA 方案说明。 |
 
 ## 当前状态
 
-目前仓库已经完成以下结构预处理工作：
+目前仓库已经完成：
 
-- 复合物数据收集与筛选
-- 残基层 `apo / holo SASA` 计算
-- `ΔSASA` 界面标签生成
-- 多阈值统计
-- 残基层训练主表整理
+- 自研 `SASA` 计算器。
+- 自研 SASA 与 FreeSASA 的示例和批量对照。
+- 复合物数据收集与筛选。
+- 残基层 `apo / holo SASA` 计算。
+- `ΔSASA` 界面弱监督标签生成。
+- 多阈值标签统计。
+- ESM-2 残基层 embedding 提取。
+- SASA / ESM 多模态训练数据构建。
+- MLP / GCN 下游界面残基预测实验。
+- 特征消融与 `ΔSASA` 阈值敏感性实验。
 
-在 B + D 扩展思路下，仓库进一步补充了以下入口：
+## 后续改进方向
 
-```bash
-# 1. 提取目标链残基层 ESM-2 embedding
-PYTHONPATH=src python3 scripts/run_extract_esm_embeddings.py --max-complexes 5
-
-# 2. 合并 ΔSASA 弱监督标签、SASA 特征、残基坐标和 ESM 特征
-PYTHONPATH=src python3 scripts/run_build_multimodal_dataset.py --label-threshold 2.0
-
-# 3. 训练 MLP 或轻量 GCN，并做特征消融
-PYTHONPATH=src python3 scripts/run_train_interface_model.py --model mlp --feature-set sasa
-PYTHONPATH=src python3 scripts/run_train_interface_model.py --model mlp --feature-set esm
-PYTHONPATH=src python3 scripts/run_train_interface_model.py --model gcn --feature-set esm_sasa
-```
-
-其中 `ΔSASA` 只用于生成弱监督标签，默认不会作为模型输入特征，避免信息泄漏。
+- 引入独立真实标注测试集，降低弱监督标签带来的评价偏差。
+- 尝试更大的 ESM-2 模型或其他蛋白语言模型。
+- 在 GCN 中加入距离权重、attention 或 Graph Transformer。
+- 做不同图构建半径实验，例如 `6 Å / 8 Å / 10 Å / 12 Å`。
+- 与 GraphPPIS 等已有方法的数据划分和 baseline 做更直接对比。

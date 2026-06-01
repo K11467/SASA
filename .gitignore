@@ -1,3 +1,22 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# Local environments and caches
+.venv/
+venv/
+.pytest_cache/
+
+# Generated experiment outputs
+data/*.txt
+data/processed/*
+!data/processed/examples/
+!data/processed/examples/**
+
+# Downloaded or generated structure datasets
+data/raw/pdb_complexes/
+
+# Model checkpoints and large binary artifacts
+*.pt
+*.pth
+*.ckpt
