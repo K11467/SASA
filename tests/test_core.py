@@ -55,6 +55,30 @@ class TrainingUtilityTests(unittest.TestCase):
         self.assertEqual(len(columns), 10)
         self.assertNotIn("delta_sasa", columns)
 
+    def test_strict_ablation_feature_columns(self):
+        rows = [{
+            "sasa_apo": "1",
+            "sasa_holo": "0.5",
+            "delta_sasa": "0.5",
+            "esm_0": "0.1",
+            "sin_phi": "0",
+            "cos_phi": "1",
+            "sin_psi": "0",
+            "cos_psi": "1",
+            "hse_up": "1",
+            "hse_dn": "2",
+            "hydrophobicity": "0.2",
+        }]
+        self.assertEqual(feature_columns(rows, "apo"), ["sasa_apo"])
+        self.assertEqual(
+            feature_columns(rows, "esm_struct"),
+            ["esm_0", "sin_phi", "cos_phi", "sin_psi", "cos_psi", "hse_up", "hse_dn", "hydrophobicity"],
+        )
+        self.assertEqual(
+            feature_columns(rows, "esm_apo_struct"),
+            ["sasa_apo", "esm_0", "sin_phi", "cos_phi", "sin_psi", "cos_psi", "hse_up", "hse_dn", "hydrophobicity"],
+        )
+
     def test_binary_metrics(self):
         metrics = binary_metrics([0, 1, 1, 0], [0.1, 0.9, 0.8, 0.2])
         self.assertEqual(metrics["f1"], 1.0)

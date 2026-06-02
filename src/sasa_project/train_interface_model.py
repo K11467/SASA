@@ -34,12 +34,14 @@ def resolve_device(torch, requested_device):
 
 def feature_columns(rows, feature_set):
     columns = []
+    if feature_set in {"apo", "esm_apo_struct"}:
+        columns.append("sasa_apo")
     if feature_set in {"sasa", "esm_sasa", "esm_sasa_struct"}:
         columns.extend(["sasa_apo", "sasa_holo"])
-    if feature_set in {"esm", "esm_sasa", "esm_sasa_struct"}:
+    if feature_set in {"esm", "esm_sasa", "esm_struct", "esm_apo_struct", "esm_sasa_struct"}:
         columns.extend(column for column in rows[0] if column.startswith("esm_"))
     # Step 3: 结构特征（二面角 + 半球暴露度 + 疏水性）
-    if feature_set == "esm_sasa_struct":
+    if feature_set in {"esm_struct", "esm_apo_struct", "esm_sasa_struct"}:
         struct_cols = ["sin_phi", "cos_phi", "sin_psi", "cos_psi", "hse_up", "hse_dn", "hydrophobicity"]
         columns.extend(c for c in struct_cols if c in rows[0])
 
@@ -129,20 +131,29 @@ def binary_metrics(labels, probs):
 
 
 def compute_auroc(pairs):
-    positives = [prob for label, prob in pairs if label == 1]
-    negatives = [prob for label, prob in pairs if label == 0]
-    if not positives or not negatives:
+    positive_count = sum(1 for label, _ in pairs if label == 1)
+    negative_count = sum(1 for label, _ in pairs if label == 0)
+    if not positive_count or not negative_count:
         return 0.0
 
     wins = 0.0
-    total = len(positives) * len(negatives)
-    for pos in positives:
-        for neg in negatives:
-            if pos > neg:
-                wins += 1.0
-            elif pos == neg:
-                wins += 0.5
-    return wins / total
+    preceding_negatives = 0
+    sorted_pairs = sorted(pairs, key=lambda item: item[1])
+    index = 0
+    while index < len(sorted_pairs):
+        probability = sorted_pairs[index][1]
+        tied_positives = 0
+        tied_negatives = 0
+        while index < len(sorted_pairs) and sorted_pairs[index][1] == probability:
+            if sorted_pairs[index][0] == 1:
+                tied_positives += 1
+            else:
+                tied_negatives += 1
+            index += 1
+        wins += tied_positives * preceding_negatives
+        wins += 0.5 * tied_positives * tied_negatives
+        preceding_negatives += tied_negatives
+    return wins / (positive_count * negative_count)
 
 
 def compute_auprc(pairs):
@@ -589,6 +600,12 @@ def train_cross_chain(torch, nn, F, rows, columns, split_keys, args):
     print_metrics("train", train_metrics)
     print_metrics("val", val_metrics)
     print_metrics("test", test_metrics)
+    write_training_summary(
+        args.summary_output,
+        args,
+        columns,
+        {"train": train_metrics, "val": val_metrics, "test": test_metrics},
+    )
 
     if args.checkpoint_output:
         metrics = {"train": train_metrics, "val": val_metrics, "test": test_metrics}
@@ -825,6 +842,12 @@ def train_egnn(torch, nn, F, rows, columns, split_keys, args):
     print_metrics("train", train_metrics)
     print_metrics("val", val_metrics)
     print_metrics("test", test_metrics)
+    write_training_summary(
+        args.summary_output,
+        args,
+        columns,
+        {"train": train_metrics, "val": val_metrics, "test": test_metrics},
+    )
 
     if args.checkpoint_output:
         metrics = best_metrics or {}
@@ -962,6 +985,30 @@ def print_metrics(name, metrics):
     print(f"{name}: {metric_text}")
 
 
+def write_training_summary(path, args, columns, metrics_by_split):
+    if not path:
+        return
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "split", "model", "feature_set", "feature_count", "distance_cutoff",
+        "accuracy", "precision", "recall", "f1", "auroc", "auprc",
+    ]
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for split, metrics in metrics_by_split.items():
+            writer.writerow({
+                "split": split,
+                "model": args.model,
+                "feature_set": args.feature_set,
+                "feature_count": len(columns),
+                "distance_cutoff": args.distance_cutoff,
+                **{key: f"{value:.6f}" for key, value in metrics.items()},
+            })
+    print(f"Saved training summary: {output_path}")
+
+
 def checkpoint_args(args):
     return {
         key: value
@@ -1020,9 +1067,14 @@ def train_mlp(torch, nn, rows, columns, split_keys, args):
         if epoch == 1 or epoch % args.log_every == 0:
             print(f"epoch={epoch:03d} train_loss={loss.item():.6f}")
 
-    print_metrics("train", evaluate_mlp(torch, model, train_x, train_y))
-    print_metrics("val", evaluate_mlp(torch, model, val_x, val_y))
-    print_metrics("test", evaluate_mlp(torch, model, test_x, test_y))
+    metrics = {
+        "train": evaluate_mlp(torch, model, train_x, train_y),
+        "val": evaluate_mlp(torch, model, val_x, val_y),
+        "test": evaluate_mlp(torch, model, test_x, test_y),
+    }
+    for split, split_metrics in metrics.items():
+        print_metrics(split, split_metrics)
+    write_training_summary(args.summary_output, args, columns, metrics)
 
 
 def train_gcn(torch, nn, F, rows, columns, split_keys, args):
@@ -1052,9 +1104,14 @@ def train_gcn(torch, nn, F, rows, columns, split_keys, args):
         if epoch == 1 or epoch % args.log_every == 0:
             print(f"epoch={epoch:03d} train_loss={total_loss / len(train_graphs):.6f}")
 
-    print_metrics("train", evaluate_gcn(torch, model, train_graphs))
-    print_metrics("val", evaluate_gcn(torch, model, val_graphs))
-    print_metrics("test", evaluate_gcn(torch, model, test_graphs))
+    metrics = {
+        "train": evaluate_gcn(torch, model, train_graphs),
+        "val": evaluate_gcn(torch, model, val_graphs),
+        "test": evaluate_gcn(torch, model, test_graphs),
+    }
+    for split, split_metrics in metrics.items():
+        print_metrics(split, split_metrics)
+    write_training_summary(args.summary_output, args, columns, metrics)
 
 
 def main():
@@ -1069,7 +1126,7 @@ def main():
     parser.add_argument("--model", choices=["mlp", "gcn", "egnn", "cross_egnn"], default="mlp")
     parser.add_argument(
         "--feature-set",
-        choices=["sasa", "esm", "esm_sasa", "esm_sasa_struct"],
+        choices=["apo", "sasa", "esm", "esm_sasa", "esm_struct", "esm_apo_struct", "esm_sasa_struct"],
         default="esm_sasa",
         help="esm_sasa_struct 需要数据集中包含二面角/HSE特征（Step 3）",
     )
@@ -1119,6 +1176,11 @@ def main():
         type=float,
         default=1.0,
         help="EGNN only: gradient clipping norm.",
+    )
+    parser.add_argument(
+        "--summary-output",
+        default=None,
+        help="Optional CSV path for train/validation/test metrics after training.",
     )
     parser.add_argument(
         "--checkpoint-output",

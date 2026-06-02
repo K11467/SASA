@@ -1,7 +1,7 @@
 # 项目二 B + D 组合整体思路介绍
 
-> 当前实现状态：正式实验已使用 ESM-2 650M、1289 维多模态特征、EGNN 和
-> cross-chain EGNN。轻量 GCN 保留为 baseline。主训练集为 500 个复合物、
+> 当前实现状态：严格主实验已使用 ESM-2 650M、1287 维 ESM + geometry
+> 特征和 EGNN。轻量 GCN 保留为 baseline，cross-chain EGNN 降级为分析模块。主训练集为 500 个复合物、
 > 95,005 个残基；Dset_186-local 和 PDBtest_315-local 外部评测均已完成。
 
 下面内容面向人工智能专业学生，尽量用 AI 任务建模的方式解释这个计算生物学项目。
@@ -345,7 +345,7 @@ ESM_feature_i ∈ R^1280
 节点特征可以拼接：
 
 ```text
-x_i = [ESM_embedding_i, SASA_apo_i, SASA_holo_i, 其他几何特征]
+x_i = [ESM_embedding_i, 其他几何特征]
 ```
 
 不过要注意一个问题：如果把 ΔSASA 同时作为标签来源，又作为输入特征，可能会有信息泄漏。
@@ -353,7 +353,7 @@ x_i = [ESM_embedding_i, SASA_apo_i, SASA_holo_i, 其他几何特征]
 所以更严谨的设计是：训练预测器时输入：
 
 ```text
-ESM_embedding_i + apo SASA_i + holo SASA_i + residue 几何特征
+ESM_embedding_i + residue 几何特征
 ```
 
 标签来自：
@@ -485,7 +485,7 @@ AUPRC
 ```text
 MLP on ESM
 MLP on SASA
-GCN / EGNN on ESM + SASA + structure
+GCN / EGNN on ESM + geometry
 ```
 
 更完整一点可以参考 GraphPPIS。它显式使用 SASA，并且提供了数据集划分、代码和预训练模型。不一定要完整复现 GraphPPIS，但可以借鉴它的任务设定和数据划分。
@@ -552,7 +552,7 @@ ESM embedding + SASA → MLP → interface / non-interface
 如果时间够，再升级成：
 
 ```text
-ESM embedding + SASA + structure → EGNN → interface / non-interface
+ESM embedding + geometry → EGNN → interface / non-interface
 ```
 
 EGNN 版本是当前正式的“结构感知预测”实现。

@@ -1,3 +1,4 @@
-run,benchmark,rows,accuracy,precision,recall,f1,auroc,auprc,predictions
-egnn_650m_d8,dset186,39505,0.918390,0.668953,0.622288,0.644777,0.886760,0.676997,data/processed/benchmark_dset186_predictions_egnn_650m_d8.csv
-cross_egnn_650m_d8,dset186,39505,0.911328,0.616748,0.673543,0.643895,0.889060,0.576576,data/processed/benchmark_dset186_predictions_cross_egnn_650m_d8.csv
+role,run,feature_set,benchmark,rows,accuracy,precision,recall,f1,auroc,auprc,predictions
+strict_primary,egnn_650m_esm_struct_d8,esm_struct,dset186,39505,0.849133,0.360470,0.345598,0.352877,0.727687,0.304967,data/processed/benchmark_dset186_predictions_egnn_esm_struct_650m_d8.csv
+holo_aware_diagnostic,egnn_650m_d8,esm_sasa_struct,dset186,39505,0.918390,0.668953,0.622288,0.644777,0.886760,0.676997,data/processed/benchmark_dset186_predictions_egnn_650m_d8.csv
+holo_aware_diagnostic,cross_egnn_650m_d8,esm_sasa_struct,dset186,39505,0.911328,0.616748,0.673543,0.643895,0.889060,0.576576,data/processed/benchmark_dset186_predictions_cross_egnn_650m_d8.csv

@@ -1,132 +1,80 @@
-# 模块 3：ESM-2 650M + SASA + EGNN 界面预测
+# 模块 3：ESM-2 650M + Geometry + EGNN 界面预测
 
-## 1. 当前主流程
+## 1. 严格主流程
 
 ```text
 PDB 复合物
 -> apo / holo SASA
 -> Delta-SASA 弱监督标签
 -> ESM-2 650M 残基层 embedding
--> SASA + 坐标 + 二面角 + HSE + 疏水性特征
--> EGNN / cross-chain EGNN
+-> ESM + 坐标 + 二面角 + HSE + 疏水性
+-> EGNN
 -> 残基层界面概率
 ```
 
-`delta_sasa` 仅用于生成标签，不进入模型特征，避免直接信息泄漏。
+`delta_sasa` 只用于生成标签。严格主模型不输入 `sasa_holo`，也不输入任何
+SASA 特征，避免模型从标签定义 `sasa_apo - sasa_holo` 中获得近邻泄漏。
 
-## 2. 正式数据
+## 2. 特征集
 
-| 数据集 | 复合物 | 残基 | 用途 |
-|---|---:|---:|---|
-| Main corpus | 500 | 95,005 | 训练、验证和内部测试 |
-| Dset_186-local | 158 | 39,505 | 外部 benchmark |
-| PDBtest_315-local | 314 | 65,119 | 外部 benchmark |
+| 名称 | 输入 | 用途 |
+|---|---|---|
+| `apo` | `sasa_apo` | 简单 baseline |
+| `sasa` | `sasa_apo + sasa_holo` | 泄漏诊断，不作为正式预测结果 |
+| `esm` | ESM-2 650M embedding | MLP baseline |
+| `esm_struct` | ESM + geometry | 严格主模型 |
+| `esm_apo_struct` | apo SASA + ESM + geometry | apo-only 消融 |
+| `esm_sasa_struct` | apo/holo SASA + ESM + geometry | 泄漏诊断 |
 
-`-local` 表示结构下载成功后，继续经过当前链质量规则得到的本地可分析子集。
+严格主模型共 `1287` 个标量输入：`1280` 维 ESM、`4` 个二面角编码、
+`2` 个 HSE 和 `1` 个疏水性特征。坐标用于 EGNN 构图和等变更新。
 
-正式 ESM 模型为：
+## 3. 内部测试结果
 
-```text
-facebook/esm2_t33_650M_UR50D
-```
+| 角色 | 模型 / 特征 | F1 | AUROC | AUPRC |
+|---|---|---:|---:|---:|
+| Strict baseline | apo-SASA rank | 0.3317 | 0.5841 | 0.2550 |
+| Strict baseline | MLP / apo | 0.4292 | 0.7000 | 0.3098 |
+| Strict baseline | MLP / ESM | 0.6290 | 0.8949 | 0.7387 |
+| Strict baseline | GCN / ESM + geometry | 0.5961 | 0.8730 | 0.6570 |
+| Strict primary | EGNN / ESM + geometry | **0.7745** | **0.9322** | **0.8421** |
+| Strict ablation | EGNN / apo + ESM + geometry | 0.7787 | 0.9348 | 0.8514 |
+| Holo-aware diagnostic | MLP / apo + holo | 0.8724 | 0.9457 | 0.9117 |
+| Holo-aware diagnostic | EGNN / apo + holo + ESM + geometry | 0.8948 | 0.9768 | 0.9497 |
 
-每个残基包含：
+含 `sasa_holo` 的分数明显更高，但不能作为可部署模型的主结果。
 
-| 特征 | 维度 |
-|---|---:|
-| ESM-2 650M embedding | 1280 |
-| `sasa_apo`、`sasa_holo` | 2 |
-| `sin_phi`、`cos_phi`、`sin_psi`、`cos_psi` | 4 |
-| `hse_up`、`hse_dn` | 2 |
-| `hydrophobicity` | 1 |
-| 合计 | 1289 |
+## 4. 外部 benchmark
 
-## 3. 模型
+| 数据集 | 角色 | 模型 | F1 | AUROC | AUPRC |
+|---|---|---|---:|---:|---:|
+| Dset_186-local | Strict primary | EGNN / ESM + geometry | 0.3529 | 0.7277 | 0.3050 |
+| PDBtest_315-local | Strict primary | EGNN / ESM + geometry | 0.3040 | 0.6799 | 0.2675 |
+| PDBtest_315-local | Holo-aware diagnostic | EGNN | 0.6761 | 0.8946 | 0.7408 |
+| PDBtest_315-local | Holo-aware diagnostic | Cross-chain EGNN | 0.6816 | 0.8983 | 0.6906 |
 
-`src/sasa_project/train_interface_model.py` 支持：
+严格外部结果显示仍存在明显泛化差距。cross-chain EGNN 只作为分析模块：
+它在部分 holo-aware 外部结果上提高 recall 和 F1，但收益不稳定。
 
-- `mlp`：残基层 MLP baseline。
-- `gcn`：距离图轻量 GCN baseline。
-- `egnn`：E(n)-equivariant residue graph network。
-- `cross_egnn`：加入 partner-chain 距离注意力的 EGNN。
-
-EGNN 默认使用 3 层、hidden dim 128、dropout 0.4、8 A 图 cutoff。训练支持梯度累积、梯度裁剪和基于 validation F1 的 early stopping。
-
-## 4. CUDA 环境
-
-本机验证环境：
-
-```text
-GPU: NVIDIA GeForce RTX 5060 Laptop GPU
-torch: 2.11.0+cu128
-CUDA available: True
-CUDA runtime: 12.8
-```
-
-Windows PowerShell：
-
-```powershell
-$env:PYTHONPATH="src"
-```
-
-`scripts/run_benchmark_eval.py --help` 已兼容默认 GBK 控制台，不再依赖
-`PYTHONUTF8=1`。
-
-## 5. 主训练结果
-
-| 模型 | Cutoff | Accuracy | Precision | Recall | F1 | AUROC | AUPRC |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| EGNN | 8 A | 0.9590 | 0.9023 | 0.8874 | **0.8948** | **0.9768** | **0.9497** |
-| Cross-chain EGNN | 8 A | 0.9584 | 0.8976 | 0.8899 | 0.8938 | 0.9755 | 0.9485 |
-
-EGNN cutoff 消融：
-
-| Cutoff | F1 | AUROC | AUPRC |
-|---:|---:|---:|---:|
-| 6 A | 0.8902 | 0.9750 | 0.9420 |
-| 8 A | **0.8948** | **0.9768** | **0.9497** |
-| 10 A | 0.8907 | 0.9758 | 0.9488 |
-| 12 A | 0.8908 | 0.9727 | 0.9449 |
-
-## 6. 外部 benchmark
-
-| 数据集 | 模型 | Accuracy | Precision | Recall | F1 | AUROC | AUPRC |
-|---|---|---:|---:|---:|---:|---:|---:|
-| Dset_186-local | EGNN | 0.9184 | 0.6690 | 0.6223 | **0.6448** | 0.8868 | **0.6770** |
-| Dset_186-local | Cross-chain EGNN | 0.9113 | 0.6167 | 0.6735 | 0.6439 | **0.8891** | 0.5766 |
-| PDBtest_315-local | EGNN | 0.9136 | 0.7360 | 0.6252 | 0.6761 | 0.8946 | **0.7408** |
-| PDBtest_315-local | Cross-chain EGNN | 0.9107 | 0.7014 | 0.6629 | **0.6816** | **0.8983** | 0.6906 |
-
-PDBtest_315-local 已在单卡 RTX 5060 Laptop GPU 上完整运行：
-
-- 315 个官方 chain-aware 条目均取得结构。
-- 314 个条目通过当前链质量筛选。
-- 65,119 个残基完成 ESM-2 650M embedding。
-- EGNN 与 cross-chain EGNN 均完成全量推断。
-
-## 7. 运行命令
+## 5. 复现
 
 完整命令见 [data/processed/README.md](../data/processed/README.md)。
 
-基础验证：
-
-```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-python scripts/run_benchmark_eval.py --help
+```powershell
+$env:PYTHONPATH="src"
+python -m unittest discover -s tests -v
+python scripts\run_benchmark_eval.py --help
 ```
 
-## 8. 交付策略
+Windows 默认 GBK 控制台已兼容，不再要求设置 `PYTHONUTF8=1`。
 
-Git 提交轻量的源码、测试、manifest、标签、预测、指标和论文表格。
-接近 GB 级的 embedding、多模态表和 checkpoint 保持忽略状态，通过命令重新生成或通过外部制品存储分发。文件清单见：
+## 6. 交付文件
 
-```text
-data/processed/artifact_manifest.csv
-```
+- `data/processed/leakage_ablation_summary_650m.csv`
+- `data/processed/benchmark_dset186_metrics_650m.csv`
+- `data/processed/benchmark_pdbtest315_metrics_650m.csv`
+- `data/processed/best_egnn_650m_esm_struct_d8.pt`
+- `data/processed/artifact_manifest.csv`
 
-## 9. 局限性
-
-- 标签来自 Delta-SASA 规则，不等同于人工实验真值。
-- 输入包含 SASA 与坐标，因此内部测试指标应视为弱监督场景下的结果。
-- 外部 benchmark 是按当前管线筛选后的 local 子集。
-- 仍需扩展至 1,000+ 训练复合物，并与更多公开方法统一协议对比。
+GraphPPIS 等文献方法暂不填入数值横向表。当前 local manifest、标签协议与公开论文
+协议不一定完全一致；正式对比需要在同一 manifest 和标签上运行双方方法。

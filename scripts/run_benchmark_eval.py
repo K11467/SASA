@@ -314,8 +314,7 @@ def evaluate_on_benchmark(rows, benchmark_name, model_checkpoint=None):
         print(f"\n[checkpoint 推断] 需先提取 ESM-2 嵌入并构建多模态数据集，然后运行：")
         print(f"  python -m sasa_project.train_interface_model \\")
         print(f"    --input data/processed/benchmark_{benchmark_name}_multimodal_650m.csv \\")
-        print(f"    --model cross_egnn --predict-only \\")
-        print(f"    --manifest data/processed/benchmark_{benchmark_name}_manifest.csv \\")
+        print(f"    --model egnn --feature-set esm_struct --predict-only \\")
         print(f"    --checkpoint-input {model_checkpoint}")
     else:
         print("\n=== 完整评测流程（需 GPU 跑 ESM-2）===")
@@ -334,9 +333,8 @@ def evaluate_on_benchmark(rows, benchmark_name, model_checkpoint=None):
         print("  Step 3 — 模型推断:")
         print("    python -m sasa_project.train_interface_model \\")
         print(f"      --input data/processed/benchmark_{benchmark_name}_multimodal_650m.csv \\")
-        print("      --model cross_egnn --predict-only \\")
-        print(f"      --manifest data/processed/benchmark_{benchmark_name}_manifest.csv \\")
-        print("      --checkpoint-input data/processed/best_cross_egnn_650m_esm_sasa_struct_d8.pt")
+        print("      --model egnn --feature-set esm_struct --predict-only \\")
+        print("      --checkpoint-input data/processed/best_egnn_650m_esm_struct_d8.pt")
 
 
 def save_benchmark_labels(rows, output_path):

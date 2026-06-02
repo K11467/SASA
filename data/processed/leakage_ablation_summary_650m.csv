@@ -1,0 +1,10 @@
+role,model,feature_set,feature_count,accuracy,precision,recall,f1,auroc,auprc
+strict_baseline,apo_sasa_rank,apo,1,0.737300,0.331700,0.331700,0.331700,0.584100,0.255000
+strict_baseline,mlp,apo,1,0.576975,0.292017,0.809251,0.429169,0.699953,0.309835
+holo_aware_diagnostic,mlp,sasa,2,0.955541,1.000000,0.773754,0.872448,0.945714,0.911720
+strict_baseline,mlp,esm,1280,0.816811,0.522399,0.790247,0.628995,0.894917,0.738699
+strict_baseline,gcn,esm_struct,1287,0.793349,0.483900,0.775905,0.596061,0.872976,0.656959
+strict_primary,egnn,esm_struct,1287,0.913760,0.796514,0.753675,0.774503,0.932217,0.842055
+strict_ablation,egnn,esm_apo_struct,1288,0.914676,0.793964,0.764073,0.778732,0.934845,0.851433
+holo_aware_diagnostic,egnn,esm_sasa_struct,1289,0.958994,0.902297,0.887415,0.894794,0.976780,0.949743
+holo_aware_diagnostic,cross_egnn,esm_sasa_struct,1289,0.958430,0.897649,0.889925,0.893770,0.975479,0.948464

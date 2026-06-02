@@ -15,6 +15,7 @@ data/processed/*
 !data/processed/README.md
 !data/processed/artifact_manifest.csv
 !data/processed/experiment_summary_650m.csv
+!data/processed/leakage_ablation_summary_650m.csv
 !data/processed/benchmark_*_manifest.csv
 !data/processed/benchmark_*_labels.csv
 !data/processed/benchmark_*_metrics_650m.csv
@@ -32,3 +33,4 @@ data/raw/pdb_complexes/
 !data/processed/best_egnn_650m_esm_sasa_struct_d10.pt
 !data/processed/best_egnn_650m_esm_sasa_struct_d12.pt
 !data/processed/best_cross_egnn_650m_esm_sasa_struct_d8.pt
+!data/processed/best_egnn_650m_esm_struct_d8.pt

@@ -56,8 +56,10 @@ PDB 复合物结构
 
 模块 3 在前两部分基础上加入 ESM-2 蛋白语言模型特征，形成残基层多模态训练数据：
 
-- `sasa_apo`
-- `sasa_holo`
+- ESM-2 embedding
+- 残基坐标、二面角、HSE 和疏水性
+- `sasa_apo`（仅用于 apo-only 消融）
+- `sasa_holo`（仅用于泄漏诊断）
 - 残基坐标
 - ESM-2 embedding
 - 由 `ΔSASA` 规则生成的弱监督标签
@@ -71,10 +73,13 @@ PDB 复合物结构
 
 支持的特征组合：
 
-- `sasa`：只使用 `sasa_apo + sasa_holo`
+- `apo`：只使用 `sasa_apo`
+- `sasa`：使用 `sasa_apo + sasa_holo`，仅用于泄漏诊断
 - `esm`：只使用 ESM-2 embedding
 - `esm_sasa`：使用 ESM-2 embedding + SASA 特征
-- `esm_sasa_struct`：使用 ESM-2 embedding + SASA + 二面角 + HSE + 疏水性特征
+- `esm_struct`：使用 ESM-2 embedding + 二面角 + HSE + 疏水性，严格主模型
+- `esm_apo_struct`：严格主模型增加 `sasa_apo`，用于 apo-only 消融
+- `esm_sasa_struct`：增加 apo/holo SASA，仅用于泄漏诊断
 
 ## 仓库结构
 
@@ -313,7 +318,7 @@ PYTHONPATH=src python scripts/run_train_interface_model.py \
 PYTHONPATH=src python scripts/run_train_interface_model.py \
   --input data/processed/multimodal_residue_dataset_650m.csv \
   --model egnn \
-  --feature-set esm_sasa_struct \
+  --feature-set esm_struct \
   --device cuda
 ```
 
@@ -351,17 +356,17 @@ label = 1 if ΔSASA > 2.0 else 0
 
 | Setting | Feature dim | Test F1 | Test AUROC | Test AUPRC |
 |---|---:|---:|---:|---:|
-| EGNN + ESM-2 650M + SASA + structure | 1289 | 0.8948 | 0.9768 | 0.9497 |
-| Cross-chain EGNN + ESM-2 650M + SASA + structure | 1289 | 0.8938 | 0.9755 | 0.9485 |
+| EGNN + ESM-2 650M + geometry（strict primary） | 1287 | 0.7745 | 0.9322 | 0.8421 |
+| EGNN + apo SASA + ESM-2 650M + geometry（strict ablation） | 1288 | 0.7787 | 0.9348 | 0.8514 |
+| EGNN + apo/holo SASA + ESM-2 650M + geometry（holo-aware diagnostic） | 1289 | 0.8948 | 0.9768 | 0.9497 |
 
 外部 benchmark 结果：
 
 | Dataset | Complexes | Residues | Model | F1 | AUROC | AUPRC |
 |---|---:|---:|---|---:|---:|---:|
-| Dset_186-local | 158 | 39,505 | EGNN | 0.6448 | 0.8868 | 0.6770 |
-| Dset_186-local | 158 | 39,505 | Cross-chain EGNN | 0.6439 | 0.8891 | 0.5766 |
-| PDBtest_315-local | 314 | 65,119 | EGNN | 0.6761 | 0.8946 | 0.7408 |
-| PDBtest_315-local | 314 | 65,119 | Cross-chain EGNN | 0.6816 | 0.8983 | 0.6906 |
+| Dset_186-local | 158 | 39,505 | EGNN / ESM + geometry（strict） | 0.3529 | 0.7277 | 0.3050 |
+| PDBtest_315-local | 314 | 65,119 | EGNN / ESM + geometry（strict） | 0.3040 | 0.6799 | 0.2675 |
+| PDBtest_315-local | 314 | 65,119 | Cross-chain EGNN（holo-aware diagnostic） | 0.6816 | 0.8983 | 0.6906 |
 
 `-local` 表示按当前仓库的结构可用性和链质量规则处理后的本地子集。
 
