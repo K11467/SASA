@@ -104,8 +104,8 @@ PYTHONPATH=src python3 scripts/run_delta_sasa_example.py \
 
 基于这 `100` 个复合物，仓库中已进一步生成批量 `ΔSASA` 标签结果：
 
-- 单个复合物标签目录：`data/processed/interface_labels_per_complex/`
-- 单个复合物阈值统计目录：`data/processed/threshold_stats_per_complex/`
+- 单个复合物标签目录：`data/processed/interface_labels_per_complex/`（本地可再生缓存，默认不纳入 Git）
+- 单个复合物阈值统计目录：`data/processed/threshold_stats_per_complex/`（本地可再生缓存，默认不纳入 Git）
 - 全部残基汇总表：`data/processed/interface_labels_all.csv`
 - 按复合物汇总的阈值统计：`data/processed/threshold_statistics_by_complex.csv`
 - 全数据集总体阈值统计：`data/processed/threshold_statistics_overall.csv`
@@ -113,13 +113,13 @@ PYTHONPATH=src python3 scripts/run_delta_sasa_example.py \
 当前汇总表规模：
 
 - `100` 个复合物
-- `18050` 个目标链残基样本
+- `95005` 个目标链残基样本
 
 ## 给后续 MLP 的直接输入
 
 为了方便第三位同学直接对接建模，仓库中进一步整理了一个更适合机器学习读取的残基层主表：
 
-- 输出文件：`data/processed/ml_residue_dataset.csv`
+- 可选输出文件：`data/processed/ml_residue_dataset.csv`（早期 MLP 输入，按需生成，默认不纳入 Git）
 - 生成脚本：`src/sasa_project/prepare_mlp_dataset.py`
 
 该表保留了：

@@ -1,6 +1,7 @@
 import argparse
 import csv
 
+from .io_utils import read_csv_dicts
 from .paths import PROCESSED_DATA_DIR
 from .residue_features import (
     extract_chain_residues,
@@ -95,81 +96,82 @@ def main():
 
     torch, tokenizer, model, device = load_model(args.model_name, args.device)
 
-    with open(args.manifest) as f:
-        manifest_rows = list(csv.DictReader(f))
+    manifest_rows = read_csv_dicts(args.manifest)
     if args.max_complexes:
         manifest_rows = manifest_rows[: args.max_complexes]
 
-    output_rows = []
     embedding_dim = None
+    writer = None
+    output_file = open(args.output, "w", newline="")
 
-    for index, manifest_row in enumerate(manifest_rows, start=1):
-        pdb_id = manifest_row["pdb_id"]
-        target_chain = manifest_row["target_chain"]
-        partner_chain = manifest_row["partner_chain"]
-        pdb_path = resolve_pdb_path(manifest_row["pdb_path"])
+    try:
+        for index, manifest_row in enumerate(manifest_rows, start=1):
+            pdb_id = manifest_row["pdb_id"]
+            target_chain = manifest_row["target_chain"]
+            partner_chain = manifest_row["partner_chain"]
+            pdb_path = resolve_pdb_path(manifest_row["pdb_path"])
 
-        atoms = parse_pdb(pdb_path)
-        residues = extract_chain_residues(atoms, target_chain)
-        sequence = residue_sequence(residues)
-        if not sequence:
-            raise ValueError(f"No residues found for {pdb_id} chain {target_chain}.")
+            atoms = parse_pdb(pdb_path)
+            residues = extract_chain_residues(atoms, target_chain)
+            sequence = residue_sequence(residues)
+            if not sequence:
+                raise ValueError(f"No residues found for {pdb_id} chain {target_chain}.")
 
-        embeddings = extract_embeddings_for_sequence(
-            torch=torch,
-            tokenizer=tokenizer,
-            model=model,
-            sequence=sequence,
-            device=device,
-        )
-        embedding_dim = len(embeddings[0])
+            embeddings = extract_embeddings_for_sequence(
+                torch=torch,
+                tokenizer=tokenizer,
+                model=model,
+                sequence=sequence,
+                device=device,
+            )
+            embedding_dim = len(embeddings[0])
 
-        for residue, embedding in zip(residues, embeddings):
-            output_row = {
-                "sample_id": residue_sample_id(
-                    pdb_id=pdb_id,
-                    target_chain=target_chain,
-                    partner_chain=partner_chain,
-                    chain_id=residue["chain_id"],
-                    residue_id=residue["residue_id"],
-                    insertion_code=residue["insertion_code"],
-                ),
-                "pdb_id": pdb_id,
-                "target_chain": target_chain,
-                "partner_chain": partner_chain,
-                "chain_id": residue["chain_id"],
-                "residue_id": residue["residue_id"],
-                "insertion_code": residue["insertion_code"],
-                "residue_name": residue["residue_name"],
-            }
-            for dim, value in enumerate(embedding):
-                output_row[f"esm_{dim}"] = f"{value:.8f}"
-            output_rows.append(output_row)
+            if writer is None:
+                fieldnames = [
+                    "sample_id",
+                    "pdb_id",
+                    "target_chain",
+                    "partner_chain",
+                    "chain_id",
+                    "residue_id",
+                    "insertion_code",
+                    "residue_name",
+                ]
+                fieldnames.extend(f"esm_{dim}" for dim in range(embedding_dim))
+                writer = csv.DictWriter(output_file, fieldnames=fieldnames)
+                writer.writeheader()
 
-        print(
-            f"[{index:03d}/{len(manifest_rows)}] "
-            f"{pdb_id} chain={target_chain} residues={len(residues)}"
-        )
+            for residue, embedding in zip(residues, embeddings):
+                output_row = {
+                    "sample_id": residue_sample_id(
+                        pdb_id=pdb_id,
+                        target_chain=target_chain,
+                        partner_chain=partner_chain,
+                        chain_id=residue["chain_id"],
+                        residue_id=residue["residue_id"],
+                        insertion_code=residue["insertion_code"],
+                    ),
+                    "pdb_id": pdb_id,
+                    "target_chain": target_chain,
+                    "partner_chain": partner_chain,
+                    "chain_id": residue["chain_id"],
+                    "residue_id": residue["residue_id"],
+                    "insertion_code": residue["insertion_code"],
+                    "residue_name": residue["residue_name"],
+                }
+                for dim, value in enumerate(embedding):
+                    output_row[f"esm_{dim}"] = f"{value:.8f}"
+                writer.writerow(output_row)
 
-    fieldnames = [
-        "sample_id",
-        "pdb_id",
-        "target_chain",
-        "partner_chain",
-        "chain_id",
-        "residue_id",
-        "insertion_code",
-        "residue_name",
-    ]
-    if embedding_dim is not None:
-        fieldnames.extend(f"esm_{dim}" for dim in range(embedding_dim))
+            print(
+                f"[{index:03d}/{len(manifest_rows)}] "
+                f"{pdb_id} chain={target_chain} residues={len(residues)} "
+                f"dim={embedding_dim}"
+            )
+    finally:
+        output_file.close()
 
-    with open(args.output, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(output_rows)
-
-    print(f"Wrote {len(output_rows)} residue embeddings to {args.output}")
+    print(f"Wrote residue embeddings to {args.output}")
 
 
 if __name__ == "__main__":

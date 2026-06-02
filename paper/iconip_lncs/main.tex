@@ -1,0 +1,363 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{url}
+
+\title{SASA-ESM: Surface-Aware Equivariant Residue Modeling for Protein--Protein Interaction Site Prediction}
+\titlerunning{SASA-ESM for Protein Interface Prediction}
+
+\author{Anonymous ICONIP Submission}
+\authorrunning{Anonymous}
+\institute{Paper under anonymous review}
+% For the camera-ready version, replace the anonymous block with:
+% \author{First Author\inst{1}\orcidID{0000-0000-0000-0000} \and Second Author\inst{1}}
+% \authorrunning{F. Author et al.}
+% \institute{Institution, City, Country \email{contact@example.com}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Protein--protein interaction (PPI) site prediction requires residue-level reasoning over
+biochemical exposure, sequence context, and three-dimensional geometry. We present
+SASA-ESM, a reproducible pipeline that constructs weak residue labels from
+\(\Delta\) solvent-accessible surface area (SASA), augments each residue with ESM-2
+protein language model embeddings and local structural descriptors, and trains an
+E(n)-equivariant graph neural network (EGNN) for interface classification. The pipeline
+uses no external graph packages: SASA, \(\Delta\)SASA labels, residue features, graph
+construction, EGNN training, cross-chain attention, benchmark manifests, and prediction
+exports are implemented in the accompanying code. On a 500-complex training corpus
+(95,005 target-chain residues), a true ESM-2 650M feature set with 1,280-dimensional
+embeddings and 8 \AA{} residue graph cutoff reaches test F1 \(=0.8948\), AUROC
+\(=0.9768\), and AUPRC \(=0.9497\). A cross-chain EGNN variant with partner-chain
+spatial attention obtains comparable test F1 \(=0.8938\). On the locally analyzable
+Dset\_186 benchmark subset (158 complexes, 39,505 residues), the EGNN model obtains
+F1 \(=0.6448\) and AUROC \(=0.8868\). On PDBtest\_315-local (314 complexes,
+65,119 residues), the cross-chain EGNN obtains F1 \(=0.6816\) and AUROC \(=0.8983\).
+Ablations over distance cutoffs 6/8/10/12 \AA{} show that 8 \AA{} is the most balanced
+setting for this corpus. These results support
+surface-aware equivariant modeling as a compact and reproducible route for PPI site
+prediction.
+
+\keywords{Protein--protein interaction \and Solvent-accessible surface area \and
+Protein language model \and ESM-2 \and Equivariant graph neural network}
+\end{abstract}
+
+\section{Introduction}
+
+Identifying the amino-acid residues that form a protein--protein interface is a central
+problem for structural bioinformatics, drug discovery, protein engineering, and functional
+annotation. Experimental structures provide the most direct evidence of interacting
+surfaces, but manually deriving residue-level labels is laborious and sensitive to the
+definition of contact. A practical predictor must combine at least three complementary
+signals: surface exposure, evolutionary sequence context, and geometric compatibility
+between nearby residues.
+
+Solvent-accessible surface area (SASA) is a natural physical measure for this task. A
+residue that is exposed in an isolated chain and becomes buried in a complex is likely to
+participate in the interface. This observation motivates the common \(\Delta\)SASA label:
+\[
+  \Delta\mathrm{SASA}_i =
+  \mathrm{SASA}^{\mathrm{apo}}_i - \mathrm{SASA}^{\mathrm{holo}}_i,
+  \quad
+  y_i = \mathbb{1}[\Delta\mathrm{SASA}_i \ge \tau].
+\]
+However, SASA alone is not sufficient: exposed non-interface residues are frequent, and
+interfaces depend on residue type, local secondary geometry, and spatial organization.
+Recent protein language models such as ESM-2 encode rich sequence context
+\cite{lin2023esm}, while equivariant graph neural networks can process residue
+coordinates without discarding the symmetries of three-dimensional space
+\cite{satorras2021egnn}.
+
+This work integrates these ingredients into SASA-ESM. The contribution is deliberately
+engineering-focused and reproducible: rather than assuming external preprocessing, the
+project implements the full data path from PDB structures to residue-level predictions.
+The main contributions are:
+\begin{itemize}
+  \item a weakly supervised \(\Delta\)SASA labeling pipeline for two-chain protein
+  complexes;
+  \item a true ESM-2 650M multimodal residue representation combining SASA,
+  1,280-dimensional protein language model embeddings, backbone/HSE descriptors,
+  hydrophobicity, and C\(\alpha\) coordinates;
+  \item an EGNN and a cross-chain EGNN with partner-chain distance attention for
+  interface prediction;
+  \item benchmark-ready prediction export on Dset\_186-local and PDBtest\_315-local,
+  plus controlled ablations over graph distance cutoffs.
+\end{itemize}
+
+\section{Related Work}
+
+Classical interface predictors often use geometric surface descriptors, conservation,
+physicochemical residue properties, or hand-designed contact features. SASA-based
+analysis traces back to the rolling-sphere definition of molecular surface accessibility
+\cite{lee1971sasa}, and efficient implementations such as FreeSASA made large-scale
+surface calculations practical \cite{mitternacht2016freesasa}. Graph-based deep learning
+has since become a common choice for protein interface modeling because residue graphs
+make local neighborhoods explicit. GraphPPIS is a representative residue graph model for
+PPI site prediction and introduced widely used benchmark assets such as Test\_315
+\cite{yuan2021graphppis}.
+
+Protein language models add another axis of information. ESM-2 learns representations
+from large protein sequence corpora and has been shown to encode structural and
+functional regularities \cite{lin2023esm}. In parallel, equivariant networks such as
+EGNN provide a principled way to use coordinates while respecting translation, rotation,
+and reflection symmetries \cite{satorras2021egnn}. SASA-ESM combines these lines: the
+label is defined by a physical surface criterion, the node representation includes
+language-model and local structural features, and the graph model is equivariant.
+
+\section{Method}
+
+\subsection{Data Construction and Labeling}
+
+The corpus is built from two-chain protein assemblies downloaded from the RCSB Protein
+Data Bank \cite{berman2000pdb}. Each complex is parsed into atoms, residues, chains, and
+C\(\alpha\) residue coordinates. We retain target and partner chains with at least 30
+residues to avoid degenerate small fragments.
+
+For each target-chain residue, SASA is calculated twice. The apo value is computed on the
+target chain alone. The holo value is computed after placing the target chain in the
+presence of the partner chain. A residue is labeled as interface when
+\(\Delta\mathrm{SASA}\ge 2.0\) \AA\({}^2\). This threshold is used throughout the
+reported experiments. Importantly, \(\Delta\)SASA is only used to define labels; it is
+not used as an input feature.
+
+\subsection{Residue Representation}
+
+Each residue node is represented by:
+\[
+  x_i = [\mathrm{SASA}^{\mathrm{apo}}_i,\,
+  \mathrm{SASA}^{\mathrm{holo}}_i,\,
+  e_i,\,
+  s_i],
+\]
+where \(e_i\in\mathbb{R}^{1280}\) is the ESM-2 650M residue embedding and \(s_i\)
+contains backbone dihedral encodings \((\sin\phi,\cos\phi,\sin\psi,\cos\psi)\), half
+sphere exposure counts, and hydrophobicity. The resulting true-650M feature set contains
+1,289 scalar input features per residue. The code validates this dimensionality to avoid
+the common failure mode of treating smaller 320-dimensional ESM features as 650M
+features.
+
+\subsection{Equivariant Residue Graph}
+
+For each target chain, a residue graph \(G=(V,E)\) is built from C\(\alpha\)
+coordinates. Residues \(i\) and \(j\) are connected when
+\(\|p_i-p_j\|_2 \le r\), where \(r\) is the distance cutoff. We evaluate
+\(r\in\{6,8,10,12\}\) \AA{}.
+
+The EGNN updates node states and coordinates through messages
+\[
+  m_{ij} = \phi_e(h_i, h_j, \|p_i-p_j\|_2/10),
+\]
+with residual feature updates and bounded coordinate weights. The implementation uses
+unit direction vectors and normalized distances for numerical stability. After three
+EGNN layers, an MLP classifier outputs an interface logit for every residue.
+
+\subsection{Cross-Chain Spatial Attention}
+
+The cross-chain variant augments the target-chain EGNN output with partner-chain C\(\alpha\)
+positions. For target residue \(i\) and partner residue \(j\), attention is computed as
+\[
+  \alpha_{ij} =
+  \mathrm{softmax}_j(-\|p_i-q_j\|_2/\sigma),
+\]
+where \(\sigma\) is learnable. Partner coordinates are projected into hidden vectors and
+combined with target hidden states before classification. This lightweight mechanism
+lets the model access the spatial layout of the interacting chain without constructing a
+full bipartite atom graph.
+
+\begin{figure}[t]
+\centering
+\fbox{\begin{minipage}{0.93\linewidth}
+\centering
+\small
+PDB complex
+\(\rightarrow\) apo/holo SASA
+\(\rightarrow\) \(\Delta\)SASA labels
+\(\rightarrow\) ESM-2 650M residue embeddings
+\(\rightarrow\) SASA + ESM + structural node features
+\(\rightarrow\) EGNN / cross-chain EGNN
+\(\rightarrow\) residue interface probabilities
+\end{minipage}}
+\caption{SASA-ESM processing pipeline. The same manifest drives label generation,
+embedding extraction, multimodal dataset construction, training, and benchmark
+prediction export.}
+\label{fig:pipeline}
+\end{figure}
+
+\section{Experimental Setup}
+
+\subsection{Datasets}
+
+Table~\ref{tab:datasets} summarizes the datasets used in this manuscript. The main
+corpus contains 500 two-chain complexes and 95,005 labeled target-chain residues. The
+Dset\_186 evaluation uses the locally analyzable subset produced by the benchmark
+pipeline after structure availability and chain-quality filtering: 158 complexes and
+39,505 residues. PDBtest\_315-local uses 314 analyzable complexes and 65,119 residues
+after the same chain-quality rules. We use the \emph{-local} suffix because both datasets
+are produced by this repository's reproducible preprocessing protocol.
+
+\begin{table}[t]
+\centering
+\caption{Datasets used in the current package.}
+\label{tab:datasets}
+\begin{tabular}{lrrl}
+\toprule
+Dataset & Complexes & Residues & Role \\
+\midrule
+Main two-chain corpus & 500 & 95,005 & Train/validation/test split \\
+Dset\_186-local & 158 & 39,505 & External benchmark prediction \\
+PDBtest\_315-local & 314 & 65,119 & External benchmark prediction \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training Protocol}
+
+Models are trained with Adam, learning rate \(10^{-3}\), weight decay \(10^{-4}\),
+hidden dimension 128, dropout 0.4, three EGNN layers, gradient clipping at 1.0, and
+early stopping based on validation F1. Complexes are split by complex identity into
+70/15/15 train/validation/test partitions with seed 42. Metrics include accuracy,
+precision, recall, F1, AUROC, and AUPRC. AUPRC is reported because interface labels are
+class-imbalanced and precision--recall curves are more informative under skewed class
+priors \cite{davis2006pr}.
+
+\section{Results}
+
+\subsection{Main Corpus}
+
+Table~\ref{tab:main_results} reports the strongest main-corpus configurations. EGNN with
+the true ESM-2 650M feature set and 8 \AA{} graph cutoff obtains the best test F1
+(0.8948) and best AUPRC (0.9497). The cross-chain EGNN performs similarly, with slightly
+higher recall but lower precision on the held-out split.
+
+\begin{table}[t]
+\centering
+\caption{Held-out test performance on the 500-complex corpus.}
+\label{tab:main_results}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Cutoff & Acc. & Prec. & Rec. & F1 & AUROC / AUPRC \\
+\midrule
+EGNN & 8 \AA{} & 0.9590 & 0.9023 & 0.8874 & \textbf{0.8948} & 0.9768 / \textbf{0.9497} \\
+Cross-chain EGNN & 8 \AA{} & 0.9584 & 0.8976 & 0.8899 & 0.8938 & 0.9755 / 0.9485 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Distance Cutoff Ablation}
+
+The graph cutoff controls the amount of geometric context available to each residue.
+Table~\ref{tab:cutoff} shows that 8 \AA{} yields the best F1 and AUPRC, while larger
+cutoffs do not improve the held-out test set. This suggests that the most useful
+information is local but not extremely short-range; a 6 \AA{} graph may miss relevant
+neighbors, whereas 10--12 \AA{} adds edges with weaker interface specificity.
+
+\begin{table}[t]
+\centering
+\caption{EGNN distance cutoff ablation on the held-out test split.}
+\label{tab:cutoff}
+\begin{tabular}{rrrrrr}
+\toprule
+Cutoff & Acc. & Prec. & Rec. & F1 & AUROC / AUPRC \\
+\midrule
+6 \AA{}  & 0.9574 & 0.9027 & 0.8781 & 0.8902 & 0.9750 / 0.9420 \\
+8 \AA{}  & \textbf{0.9590} & 0.9023 & \textbf{0.8874} & \textbf{0.8948} & \textbf{0.9768} / \textbf{0.9497} \\
+10 \AA{} & 0.9577 & 0.9040 & 0.8777 & 0.8907 & 0.9758 / 0.9488 \\
+12 \AA{} & 0.9584 & \textbf{0.9188} & 0.8645 & 0.8908 & 0.9727 / 0.9449 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dset\_186-local Prediction}
+
+Table~\ref{tab:dset186} reports prediction metrics on Dset\_186-local using the 8 \AA{}
+models trained on the main corpus. Both models reach similar F1 values. The EGNN has
+higher precision and AUPRC, while the cross-chain EGNN has higher recall and AUROC. The
+drop from the internal held-out split to the benchmark subset is expected because the
+benchmark includes unseen structures and was produced through an independent manifest
+path.
+
+\begin{table}[t]
+\centering
+\caption{External prediction on Dset\_186-local (158 complexes, 39,505 residues).}
+\label{tab:dset186}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Acc. & Prec. & Rec. & F1 & AUROC & AUPRC \\
+\midrule
+EGNN & \textbf{0.9184} & \textbf{0.6690} & 0.6223 & \textbf{0.6448} & 0.8868 & \textbf{0.6770} \\
+Cross-chain EGNN & 0.9113 & 0.6167 & \textbf{0.6735} & 0.6439 & \textbf{0.8891} & 0.5766 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{PDBtest\_315-local Prediction}
+
+Table~\ref{tab:pdbtest315} reports the completed PDBtest\_315-local run. All 315 official
+chain-aware entries obtained structures from RCSB; 314 passed the current chain-quality
+rules. ESM-2 650M embeddings and both model predictions were produced on one NVIDIA
+GeForce RTX 5060 Laptop GPU. The cross-chain EGNN improves recall, F1, and AUROC, while
+the target-only EGNN retains the higher precision and AUPRC.
+
+\begin{table}[t]
+\centering
+\caption{External prediction on PDBtest\_315-local (314 complexes, 65,119 residues).}
+\label{tab:pdbtest315}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Acc. & Prec. & Rec. & F1 & AUROC & AUPRC \\
+\midrule
+EGNN & \textbf{0.9136} & \textbf{0.7360} & 0.6252 & 0.6761 & 0.8946 & \textbf{0.7408} \\
+Cross-chain EGNN & 0.9107 & 0.7014 & \textbf{0.6629} & \textbf{0.6816} & \textbf{0.8983} & 0.6906 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+
+The experiments show that a physically grounded label source and a language-model
+representation are complementary. SASA provides the supervision signal and two direct
+surface features; ESM-2 contributes sequence and evolutionary context; structural
+descriptors and coordinates let the EGNN model local geometry. The true-650M correction
+is important: the final files contain 1,280 ESM dimensions and 1,289 total features,
+whereas older 320-dimensional embeddings would correspond to a different ESM-2 scale and
+cannot be compared as 650M experiments.
+
+Cross-chain attention did not clearly outperform the target-only EGNN on the main split.
+This is still informative. The target chain already contains strong interface cues in
+\(\Delta\)SASA-derived labels, SASA features, and local coordinates. The partner-chain
+attention is beneficial on the harder PDBtest\_315-local benchmark for recall, F1, and
+AUROC, but it does not consistently improve precision or AUPRC. A future training setup
+should explicitly sample non-interacting partner candidates.
+
+\section{Limitations and Reproducibility}
+
+This manuscript reports only experiments completed in the packaged project state.
+PDBtest\_315-local preprocessing, ESM-2 extraction, and prediction are complete. The
+collector can be configured for 1,000+ complexes and the extractor supports larger ESM-2
+models such as 3B, but those scale-up experiments should be run and reported separately
+with storage, runtime, and hardware details.
+
+All reported numeric tables are backed by CSV files included with this submission
+package under \texttt{data/}. The implementation exports per-residue predictions for
+benchmark analysis and stores model checkpoints with feature columns, normalization
+statistics, cutoff, hidden size, and metric metadata.
+
+\section{Conclusion}
+
+SASA-ESM provides a compact, end-to-end implementation for PPI site prediction from
+protein complex structures. On a 500-complex corpus, true ESM-2 650M features and EGNN
+geometry reach F1 near 0.895 and AUROC near 0.977. Dset\_186-local and
+PDBtest\_315-local results demonstrate that the model can be exported to independent
+benchmark manifests. The current package is suitable as an ICONIP-style LNCS submission
+draft and a foundation for planned 1,000+ complex and larger ESM model extensions.
+
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}

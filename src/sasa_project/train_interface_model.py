@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
+from .io_utils import read_csv_dicts
 from .residue_features import (
     build_edge_pairs,
     extract_chain_residues,
@@ -435,10 +436,9 @@ def build_cross_chain_graphs(torch, rows, columns, distance_cutoff, manifest_pat
     """
     manifest_by_key = {}
     if manifest_path and Path(manifest_path).exists():
-        with open(manifest_path) as f:
-            for row in csv.DictReader(f):
-                key = (row["pdb_id"], row["target_chain"], row["partner_chain"])
-                manifest_by_key[key] = row
+        for row in read_csv_dicts(manifest_path):
+            key = (row["pdb_id"], row["target_chain"], row["partner_chain"])
+            manifest_by_key[key] = row
 
     grouped = defaultdict(list)
     for row in rows:
@@ -469,6 +469,7 @@ def build_cross_chain_graphs(torch, rows, columns, distance_cutoff, manifest_pat
             "x": x, "y": y, "pos": pos,
             "edge_index": edge_index,
             "partner_pos": partner_pos,
+            "rows": graph_rows,
         })
 
     if missing_partner:
@@ -624,7 +625,13 @@ def build_egnn_graphs(torch, rows, columns, distance_cutoff):
         else:
             edge_index = torch.zeros((2, 0), dtype=torch.long)
 
-        graphs.append({"x": x, "y": y, "pos": pos, "edge_index": edge_index})
+        graphs.append({
+            "x": x,
+            "y": y,
+            "pos": pos,
+            "edge_index": edge_index,
+            "rows": graph_rows,
+        })
     return graphs
 
 
@@ -664,6 +671,83 @@ def evaluate_egnn(torch, model, graphs):
             probs.extend(out.cpu().tolist())
             labels.extend(int(v) for v in graph["y"].cpu().tolist())
     return binary_metrics(labels, probs)
+
+
+def _graph_prediction_rows(torch, model, graphs, model_name):
+    model.eval()
+    output_rows = []
+    with torch.no_grad():
+        for graph in graphs:
+            if model_name == "cross_egnn":
+                out = model(
+                    graph["x"],
+                    graph["pos"],
+                    graph["edge_index"],
+                    graph["partner_pos"],
+                )
+            else:
+                out = model(graph["x"], graph["pos"], graph["edge_index"])
+            probs = torch.sigmoid(out).detach().cpu().tolist()
+            labels = [int(value) for value in graph["y"].detach().cpu().tolist()]
+            for row, label, prob in zip(graph["rows"], labels, probs):
+                output_rows.append({
+                    "sample_id": row.get("sample_id", ""),
+                    "pdb_id": row["pdb_id"],
+                    "target_chain": row["target_chain"],
+                    "partner_chain": row["partner_chain"],
+                    "chain_id": row["chain_id"],
+                    "residue_id": row["residue_id"],
+                    "insertion_code": row.get("insertion_code", ""),
+                    "residue_name": row.get("residue_name", ""),
+                    "label": label,
+                    "probability": f"{float(prob):.8f}",
+                    "prediction": int(float(prob) >= 0.5),
+                })
+    return output_rows
+
+
+def write_prediction_output(path, prediction_rows):
+    if not path:
+        return
+    fieldnames = [
+        "sample_id",
+        "pdb_id",
+        "target_chain",
+        "partner_chain",
+        "chain_id",
+        "residue_id",
+        "insertion_code",
+        "residue_name",
+        "label",
+        "probability",
+        "prediction",
+    ]
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(prediction_rows)
+    print(f"Saved predictions: {path} ({len(prediction_rows)} rows)")
+
+
+def write_metrics_output(path, metrics, model_name, row_count):
+    if not path:
+        return
+    fieldnames = [
+        "model",
+        "rows",
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "auroc",
+        "auprc",
+    ]
+    row = {"model": model_name, "rows": row_count, **metrics}
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow(row)
+    print(f"Saved metrics: {path}")
 
 
 def train_egnn(torch, nn, F, rows, columns, split_keys, args):
@@ -757,10 +841,11 @@ def train_egnn(torch, nn, F, rows, columns, split_keys, args):
         )
 
 
-def predict_egnn(torch, nn, F, rows, args):
+def predict_graph_model(torch, nn, F, rows, args):
     checkpoint = torch.load(args.checkpoint_input, map_location=args.device)
-    if checkpoint.get("model") != "egnn":
-        raise ValueError("Only EGNN checkpoints are supported by --predict-only currently.")
+    model_name = checkpoint.get("model")
+    if model_name not in {"egnn", "cross_egnn"}:
+        raise ValueError("Only EGNN and CrossChainEGNN checkpoints are supported by --predict-only.")
 
     columns = checkpoint["feature_columns"]
     missing_columns = [column for column in columns if column not in rows[0]]
@@ -775,11 +860,30 @@ def predict_egnn(torch, nn, F, rows, args):
     egnn_layers = checkpoint.get("egnn_layers", args.egnn_layers)
     distance_cutoff = checkpoint.get("distance_cutoff", args.distance_cutoff)
 
-    wrapped = EGNNModel(torch, nn, F, len(columns), hidden_dim, dropout, n_layers=egnn_layers)
+    if model_name == "cross_egnn":
+        wrapped = CrossChainEGNNModel(
+            torch,
+            nn,
+            F,
+            len(columns),
+            hidden_dim,
+            dropout,
+            n_layers=egnn_layers,
+        )
+        graphs = build_cross_chain_graphs(
+            torch,
+            rows,
+            columns,
+            distance_cutoff,
+            args.manifest,
+        )
+    else:
+        wrapped = EGNNModel(torch, nn, F, len(columns), hidden_dim, dropout, n_layers=egnn_layers)
+        graphs = build_egnn_graphs(torch, rows, columns, distance_cutoff)
+
     model = wrapped.model.to(args.device)
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    graphs = build_egnn_graphs(torch, rows, columns, distance_cutoff)
     if "feature_mean" not in checkpoint or "feature_std" not in checkpoint:
         raise ValueError("Checkpoint does not contain feature normalization statistics.")
     apply_egnn_normalization(
@@ -789,8 +893,18 @@ def predict_egnn(torch, nn, F, rows, args):
         checkpoint["feature_std"],
         args.device,
     )
-    to_device_egnn(graphs, args.device)
-    print_metrics("predict", evaluate_egnn(torch, model, graphs))
+    if model_name == "cross_egnn":
+        to_device_cross_chain(graphs, args.device)
+        metrics = evaluate_cross_chain(torch, model, graphs)
+    else:
+        to_device_egnn(graphs, args.device)
+        metrics = evaluate_egnn(torch, model, graphs)
+    print_metrics("predict", metrics)
+    write_metrics_output(args.metrics_output, metrics, model_name, len(rows))
+    write_prediction_output(
+        args.prediction_output,
+        _graph_prediction_rows(torch, model, graphs, model_name),
+    )
 
 
 def build_graphs(torch, rows, columns, distance_cutoff):
@@ -1022,6 +1136,16 @@ def main():
         help="Load --checkpoint-input and evaluate the rows in --input without training.",
     )
     parser.add_argument(
+        "--prediction-output",
+        default=None,
+        help="Optional CSV path for per-residue predictions in --predict-only mode.",
+    )
+    parser.add_argument(
+        "--metrics-output",
+        default=None,
+        help="Optional CSV path for aggregate metrics in --predict-only mode.",
+    )
+    parser.add_argument(
         "--manifest",
         default="data/processed/complex_manifest.csv",
         help="Complex manifest CSV (required for --model cross_egnn to load partner chain PDB coords).",
@@ -1050,7 +1174,7 @@ def main():
     if args.predict_only:
         if not args.checkpoint_input:
             raise ValueError("--predict-only requires --checkpoint-input.")
-        predict_egnn(torch, nn, F, rows, args)
+        predict_graph_model(torch, nn, F, rows, args)
         return
 
     if args.model == "mlp":

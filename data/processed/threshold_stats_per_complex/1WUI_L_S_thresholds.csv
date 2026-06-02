@@ -1,5 +1,0 @@
-threshold,positive_count,negative_count,positive_ratio,negative_ratio
-0.50,93,439,0.174812,0.825188
-1.00,93,439,0.174812,0.825188
-2.00,89,443,0.167293,0.832707
-5.00,81,451,0.152256,0.847744

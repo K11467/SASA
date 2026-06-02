@@ -1,0 +1,16 @@
+run,split,model,feature_set,esm_dim,feature_count,distance_cutoff,hidden_dim,egnn_layers,accuracy,precision,recall,f1,auroc,auprc,checkpoint
+egnn_650m_esm_sasa_struct_d6,train,egnn,esm_sasa_struct,1280,1289,6.0,128,3,0.994476,0.976711,0.997888,0.987186,0.999860,0.999471,data/processed/best_egnn_650m_esm_sasa_struct_d6.pt
+egnn_650m_esm_sasa_struct_d6,val,egnn,esm_sasa_struct,1280,1289,6.0,128,3,0.944554,0.877273,0.851952,0.864427,0.961551,0.904852,data/processed/best_egnn_650m_esm_sasa_struct_d6.pt
+egnn_650m_esm_sasa_struct_d6,test,egnn,esm_sasa_struct,1280,1289,6.0,128,3,0.957444,0.902691,0.878093,0.890222,0.975028,0.941983,data/processed/best_egnn_650m_esm_sasa_struct_d6.pt
+egnn_650m_esm_sasa_struct_d8,train,egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.993620,0.972954,0.997818,0.985229,0.999827,0.999348,data/processed/best_egnn_650m_esm_sasa_struct_d8.pt
+egnn_650m_esm_sasa_struct_d8,val,egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.949838,0.904969,0.847199,0.875132,0.965754,0.932891,data/processed/best_egnn_650m_esm_sasa_struct_d8.pt
+egnn_650m_esm_sasa_struct_d8,test,egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.958994,0.902297,0.887415,0.894794,0.976780,0.949743,data/processed/best_egnn_650m_esm_sasa_struct_d8.pt
+egnn_650m_esm_sasa_struct_d10,train,egnn,esm_sasa_struct,1280,1289,10.0,128,3,0.994971,0.978408,0.998451,0.988328,0.999900,0.999618,data/processed/best_egnn_650m_esm_sasa_struct_d10.pt
+egnn_650m_esm_sasa_struct_d10,val,egnn,esm_sasa_struct,1280,1289,10.0,128,3,0.949979,0.911602,0.840407,0.874558,0.959444,0.932957,data/processed/best_egnn_650m_esm_sasa_struct_d10.pt
+egnn_650m_esm_sasa_struct_d10,test,egnn,esm_sasa_struct,1280,1289,10.0,128,3,0.957655,0.903988,0.877734,0.890668,0.975770,0.948848,data/processed/best_egnn_650m_esm_sasa_struct_d10.pt
+egnn_650m_esm_sasa_struct_d12,train,egnn,esm_sasa_struct,1280,1289,12.0,128,3,0.994656,0.976599,0.998874,0.987610,0.999929,0.999732,data/processed/best_egnn_650m_esm_sasa_struct_d12.pt
+egnn_650m_esm_sasa_struct_d12,val,egnn,esm_sasa_struct,1280,1289,12.0,128,3,0.951388,0.913155,0.846180,0.878393,0.962655,0.935568,data/processed/best_egnn_650m_esm_sasa_struct_d12.pt
+egnn_650m_esm_sasa_struct_d12,test,egnn,esm_sasa_struct,1280,1289,12.0,128,3,0.958360,0.918826,0.864468,0.890818,0.972745,0.944936,data/processed/best_egnn_650m_esm_sasa_struct_d12.pt
+cross_egnn_650m_esm_sasa_struct_d8,train,cross_egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.993605,0.972304,0.998451,0.985204,0.999832,0.999370,data/processed/best_cross_egnn_650m_esm_sasa_struct_d8.pt
+cross_egnn_650m_esm_sasa_struct_d8,val,cross_egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.943920,0.861663,0.869270,0.865450,0.960505,0.893312,data/processed/best_cross_egnn_650m_esm_sasa_struct_d8.pt
+cross_egnn_650m_esm_sasa_struct_d8,test,cross_egnn,esm_sasa_struct,1280,1289,8.0,128,3,0.958430,0.897649,0.889925,0.893770,0.975479,0.948464,data/processed/best_cross_egnn_650m_esm_sasa_struct_d8.pt

@@ -1,5 +1,9 @@
 # 项目二 B + D 组合整体思路介绍
 
+> 当前实现状态：正式实验已使用 ESM-2 650M、1289 维多模态特征、EGNN 和
+> cross-chain EGNN。轻量 GCN 保留为 baseline。主训练集为 500 个复合物、
+> 95,005 个残基；Dset_186-local 和 PDBtest_315-local 外部评测均已完成。
+
 下面内容面向人工智能专业学生，尽量用 AI 任务建模的方式解释这个计算生物学项目。
 
 ---
@@ -176,7 +180,7 @@ PDB 复合物结构
 ```text
 序列语义信息：ESM embedding
 几何暴露信息：SASA / ΔSASA / residue-level SASA
-空间邻域信息：GCN 图结构
+空间邻域信息：GCN / EGNN 图结构
 ```
 
 这就变成了真正的多模态融合：
@@ -280,7 +284,7 @@ label = 0 otherwise
 ΔSASA ≤ 1.0 Å² → non-interface residue
 ```
 
-这个标签就是训练 GCN 的监督信号。
+这个标签就是训练 GCN / EGNN 的监督信号。
 
 可以在实验里比较不同阈值：
 
@@ -349,7 +353,7 @@ x_i = [ESM_embedding_i, SASA_apo_i, SASA_holo_i, 其他几何特征]
 所以更严谨的设计是：训练预测器时输入：
 
 ```text
-ESM_embedding_i + apo SASA_i + residue 几何特征
+ESM_embedding_i + apo SASA_i + holo SASA_i + residue 几何特征
 ```
 
 标签来自：
@@ -360,16 +364,16 @@ ESM_embedding_i + apo SASA_i + residue 几何特征
 
 也就是说：**ΔSASA 用来生成 label，不要直接作为模型输入**。否则模型可能学到一个太直接的规则，实验意义下降。
 
-模型可以用轻量 GCN：
+baseline 可以用轻量 GCN；正式实验使用 EGNN：
 
 ```text
 Input node features
 ↓
-GCN layer
+EGNN layer
 ↓
 ReLU
 ↓
-GCN layer
+EGNN layer
 ↓
 ReLU
 ↓
@@ -481,7 +485,7 @@ AUPRC
 ```text
 MLP on ESM
 MLP on SASA
-GCN on ESM + SASA
+GCN / EGNN on ESM + SASA + structure
 ```
 
 更完整一点可以参考 GraphPPIS。它显式使用 SASA，并且提供了数据集划分、代码和预训练模型。不一定要完整复现 GraphPPIS，但可以借鉴它的任务设定和数据划分。
@@ -501,7 +505,7 @@ GCN on ESM + SASA
 | ΔSASA | 伪标签生成规则 |
 | PPI interface | 节点二分类标签 |
 | ESM-2 | 预训练 Transformer encoder |
-| GCN | 图神经网络 |
+| GCN / EGNN | 图神经网络 baseline / 正式等变图模型 |
 | 消融实验 | 多模态特征贡献分析 |
 
 所以不需要一开始就从生物化学角度理解所有细节。可以把它看成：
@@ -533,11 +537,11 @@ GCN on ESM + SASA
 6. 用阈值生成 interface label
 7. 用 ESM-2 提取每个残基 embedding
 8. 拼接 apo SASA 作为特征
-9. 训练 MLP 或 GCN 做残基二分类
+9. 训练 MLP、GCN、EGNN 或 cross-chain EGNN 做残基二分类
 10. 做 ESM only / SASA only / ESM + SASA 消融
 ```
 
-如果时间紧，可以先不用 GCN，先做：
+如果只做最小 baseline，可以先不用图模型，先做：
 
 ```text
 ESM embedding + SASA → MLP → interface / non-interface
@@ -548,10 +552,10 @@ ESM embedding + SASA → MLP → interface / non-interface
 如果时间够，再升级成：
 
 ```text
-ESM embedding + SASA → GCN → interface / non-interface
+ESM embedding + SASA + structure → EGNN → interface / non-interface
 ```
 
-GCN 版本会更符合“结构感知预测”。
+EGNN 版本是当前正式的“结构感知预测”实现。
 
 ---
 

@@ -13,7 +13,7 @@ PDB 复合物结构
 -> ΔSASA 弱监督标签生成
 -> ESM-2 残基层 embedding 提取
 -> SASA / ESM / 坐标多模态数据融合
--> MLP / GCN 界面残基预测
+-> MLP / GCN / EGNN / cross-chain EGNN 界面残基预测
 -> 特征消融与阈值敏感性分析
 ```
 
@@ -66,12 +66,15 @@ PDB 复合物结构
 
 - `MLP`：普通多层感知机，用于快速 baseline 和特征消融。
 - `GCN`：基于残基空间距离构图的轻量图卷积网络。
+- `EGNN`：使用坐标更新和距离消息传递的 E(n)-equivariant 图网络。
+- `cross_egnn`：在 EGNN 基础上增加 partner-chain 距离注意力。
 
 支持的特征组合：
 
 - `sasa`：只使用 `sasa_apo + sasa_holo`
 - `esm`：只使用 ESM-2 embedding
 - `esm_sasa`：使用 ESM-2 embedding + SASA 特征
+- `esm_sasa_struct`：使用 ESM-2 embedding + SASA + 二面角 + HSE + 疏水性特征
 
 ## 仓库结构
 
@@ -121,10 +124,10 @@ src/
 | `data/raw/` | 原始输入数据。 |
 | `data/raw/examples/` | 示例 PDB、`Dot.txt` 球面采样点和示意图片。 |
 | `data/raw/pdb_complexes/` | 批量复合物 PDB 数据集。 |
-| `data/processed/` | 程序生成的中间结果和最终训练数据。 |
+| `data/processed/` | 程序生成的中间结果、轻量结果摘要和最终训练数据。大文件默认不提交。 |
 | `data/processed/examples/` | 单结构 `SASA` 和单复合物 `ΔSASA` 的示例输出。 |
-| `data/processed/interface_labels_per_complex/` | 每个复合物单独的残基界面标签 CSV。 |
-| `data/processed/threshold_stats_per_complex/` | 每个复合物在不同阈值下的标签统计。 |
+| `data/processed/interface_labels_per_complex/` | 每个复合物单独的残基界面标签 CSV。本地可再生缓存，不纳入 Git。 |
+| `data/processed/threshold_stats_per_complex/` | 每个复合物在不同阈值下的标签统计。本地可再生缓存，不纳入 Git。 |
 | `docs/` | 项目文档、模块说明、实验分析和报告材料。 |
 | `docs/assets/` | 文档中使用的图片和实验图。 |
 | `scripts/` | 命令行运行入口。大多数脚本只负责调用 `src/sasa_project/` 中的主逻辑。 |
@@ -137,14 +140,11 @@ src/
 |---|---|
 | `data/processed/complex_manifest.csv` | 复合物清单，记录 PDB ID、目标链、配对链和文件路径等信息。 |
 | `data/processed/interface_labels_all.csv` | 所有复合物合并后的残基层界面标签总表。 |
-| `data/processed/ml_residue_dataset.csv` | 早期面向 MLP 的残基层训练主表。 |
-| `data/processed/esm_residue_embeddings.csv` | ESM-2 小模型或历史版本残基 embedding。 |
 | `data/processed/esm_residue_embeddings_650m.csv` | ESM-2 650M 模型提取的残基层 embedding。 |
-| `data/processed/multimodal_residue_dataset.csv` | 多模态残基层训练数据表。 |
-| `data/processed/multimodal_residue_dataset_650m.csv` | 使用 ESM-2 650M embedding 构建的多模态训练数据表。 |
-| `data/processed/multimodal_residue_dataset_t0_5.csv` | 使用 `ΔSASA > 0.5` 标签阈值的数据集。 |
-| `data/processed/multimodal_residue_dataset_t1_0.csv` | 使用 `ΔSASA > 1.0` 标签阈值的数据集。 |
-| `data/processed/multimodal_residue_dataset_t5_0.csv` | 使用 `ΔSASA > 5.0` 标签阈值的数据集。 |
+| `data/processed/multimodal_residue_dataset_650m.csv` | 正式多模态训练表，包含 1280 维 ESM 和 9 个 SASA / 结构特征。 |
+| `data/processed/benchmark_dset186_*` | Dset_186-local 标签、manifest、预测和指标。 |
+| `data/processed/benchmark_pdbtest315_*` | PDBtest_315-local 标签、manifest、预测和指标。 |
+| `data/processed/artifact_manifest.csv` | 本地大文件的大小、用途和 Git 交付策略。 |
 | `data/processed/threshold_statistics_by_complex.csv` | 每个复合物的阈值统计汇总。 |
 | `data/processed/threshold_statistics_overall.csv` | 全数据集整体阈值统计。 |
 
@@ -162,7 +162,7 @@ src/
 | `src/sasa_project/residue_features.py` | 残基层公共工具，包括三字母氨基酸转一字母序列、残基提取、`sample_id` 生成、残基坐标提取和空间距离构图。 |
 | `src/sasa_project/extract_esm_embeddings.py` | 调用 ESM-2 模型，为目标链每个残基提取语言模型 embedding。 |
 | `src/sasa_project/build_multimodal_dataset.py` | 合并 `ΔSASA` 标签、SASA 特征、残基坐标和 ESM embedding，生成多模态训练表。 |
-| `src/sasa_project/train_interface_model.py` | 训练界面残基预测模型，支持 `MLP` 和轻量 `GCN`，并输出 Accuracy、Precision、Recall、F1、AUROC、AUPRC。 |
+| `src/sasa_project/train_interface_model.py` | 训练或评测 `MLP / GCN / EGNN / cross_egnn`，并输出 Accuracy、Precision、Recall、F1、AUROC、AUPRC。 |
 
 ## 脚本入口说明
 
@@ -175,7 +175,8 @@ src/
 | `scripts/run_prepare_mlp_dataset.py` | 生成早期 MLP 训练表。 |
 | `scripts/run_extract_esm_embeddings.py` | 提取 ESM-2 残基 embedding。 |
 | `scripts/run_build_multimodal_dataset.py` | 构建 SASA + ESM + 标签的多模态训练数据集。 |
-| `scripts/run_train_interface_model.py` | 训练 MLP / GCN 界面预测模型。 |
+| `scripts/run_train_interface_model.py` | 训练或评测 MLP / GCN / EGNN / cross-chain EGNN。 |
+| `scripts/run_benchmark_eval.py` | 下载并生成 Dset_186-local 或 PDBtest_315-local 的 ΔSASA 标签与 manifest。 |
 | `scripts/run_freesasa_comparison.py` | 在单个示例上对比自研 SASA 与 FreeSASA。 |
 | `scripts/run_batch_freesasa_comparison.py` | 批量对比自研 SASA 与 FreeSASA，并生成验证图。 |
 
@@ -199,6 +200,9 @@ Windows PowerShell 下运行脚本前，可以设置：
 ```powershell
 $env:PYTHONPATH="src"
 ```
+
+评测脚本已经兼容 Windows 默认 GBK 控制台，不再要求额外设置
+`PYTHONUTF8=1`。设置该变量仍然可用。
 
 Linux / macOS / Git Bash 下可以使用：
 
@@ -303,28 +307,63 @@ PYTHONPATH=src python scripts/run_train_interface_model.py \
   --device cuda
 ```
 
+正式 EGNN：
+
+```bash
+PYTHONPATH=src python scripts/run_train_interface_model.py \
+  --input data/processed/multimodal_residue_dataset_650m.csv \
+  --model egnn \
+  --feature-set esm_sasa_struct \
+  --device cuda
+```
+
+### 8. 运行标准 benchmark
+
+完整 PDBtest_315-local 流程：
+
+```bash
+python scripts/run_benchmark_eval.py --benchmark pdbtest315
+
+PYTHONPATH=src python -m sasa_project.extract_esm_embeddings \
+  --manifest data/processed/benchmark_pdbtest315_manifest.csv \
+  --model-name facebook/esm2_t33_650M_UR50D \
+  --device cuda \
+  --output data/processed/benchmark_pdbtest315_esm_embeddings_650m.csv
+
+PYTHONPATH=src python -m sasa_project.build_multimodal_dataset \
+  --labels data/processed/benchmark_pdbtest315_labels.csv \
+  --manifest data/processed/benchmark_pdbtest315_manifest.csv \
+  --embeddings data/processed/benchmark_pdbtest315_esm_embeddings_650m.csv \
+  --output data/processed/benchmark_pdbtest315_multimodal_650m.csv
+```
+
+模型推断命令见 [data/processed/README.md](data/processed/README.md)。
+
 ## 当前实验结果摘要
 
-使用全量 `100` 个复合物、`18050` 个残基样本，默认标签为：
+正式训练使用 `500` 个复合物、`95,005` 个残基样本，默认标签为：
 
 ```text
 label = 1 if ΔSASA > 2.0 else 0
 ```
 
-模块 3 中记录的主要结果如下：
+主模型结果如下：
 
 | Setting | Feature dim | Test F1 | Test AUROC | Test AUPRC |
 |---|---:|---:|---:|---:|
-| MLP + SASA only | 2 | 0.8754 | 0.9439 | 0.9136 |
-| MLP + ESM-2 650M only | 1280 | 0.6480 | 0.8736 | 0.7242 |
-| MLP + ESM-2 650M + SASA | 1282 | 0.6642 | 0.8767 | 0.7389 |
-| GCN + ESM-2 650M + SASA | 1282 | 0.6025 | 0.8368 | 0.6156 |
+| EGNN + ESM-2 650M + SASA + structure | 1289 | 0.8948 | 0.9768 | 0.9497 |
+| Cross-chain EGNN + ESM-2 650M + SASA + structure | 1289 | 0.8938 | 0.9755 | 0.9485 |
 
-结果说明：
+外部 benchmark 结果：
 
-- `ESM + SASA` 相比 `ESM only` 有提升，说明几何暴露信息可以补充序列语义信息。
-- `SASA only` 表现最强，主要因为标签由 `ΔSASA` 规则生成，`sasa_apo / sasa_holo` 与标签机制高度相关。
-- 当前 GCN 是轻量结构感知 baseline，尚未加入距离权重、attention、Graph Transformer 或等变 GNN。
+| Dataset | Complexes | Residues | Model | F1 | AUROC | AUPRC |
+|---|---:|---:|---|---:|---:|---:|
+| Dset_186-local | 158 | 39,505 | EGNN | 0.6448 | 0.8868 | 0.6770 |
+| Dset_186-local | 158 | 39,505 | Cross-chain EGNN | 0.6439 | 0.8891 | 0.5766 |
+| PDBtest_315-local | 314 | 65,119 | EGNN | 0.6761 | 0.8946 | 0.7408 |
+| PDBtest_315-local | 314 | 65,119 | Cross-chain EGNN | 0.6816 | 0.8983 | 0.6906 |
+
+`-local` 表示按当前仓库的结构可用性和链质量规则处理后的本地子集。
 
 更完整的实验说明见 [docs/module_3.md](docs/module_3.md)。
 
@@ -353,13 +392,15 @@ label = 1 if ΔSASA > 2.0 else 0
 - 多阈值标签统计。
 - ESM-2 残基层 embedding 提取。
 - SASA / ESM 多模态训练数据构建。
-- MLP / GCN 下游界面残基预测实验。
+- MLP / GCN / EGNN / cross-chain EGNN 下游界面残基预测实验。
 - 特征消融与 `ΔSASA` 阈值敏感性实验。
+- Dset_186-local 和 PDBtest_315-local 全量 GPU 评测。
+- 自动化 smoke test。
 
 ## 后续改进方向
 
 - 引入独立真实标注测试集，降低弱监督标签带来的评价偏差。
 - 尝试更大的 ESM-2 模型或其他蛋白语言模型。
-- 在 GCN 中加入距离权重、attention 或 Graph Transformer。
-- 做不同图构建半径实验，例如 `6 Å / 8 Å / 10 Å / 12 Å`。
+- 扩展至 1,000+ 训练复合物。
+- 尝试更强的跨链图结构或 Graph Transformer。
 - 与 GraphPPIS 等已有方法的数据划分和 baseline 做更直接对比。

@@ -44,10 +44,14 @@ def resolve_pdb_path(pdb_path):
     if path.exists():
         return path
 
-    filename = path.name
+    filename = str(pdb_path).replace("\\", "/").rsplit("/", 1)[-1]
     fallback_path = PDB_COMPLEX_DIR / filename
     if fallback_path.exists():
         return fallback_path
+
+    benchmark_path = PDB_COMPLEX_DIR / "benchmarks" / filename
+    if benchmark_path.exists():
+        return benchmark_path
 
     raise FileNotFoundError(f"PDB file not found: {pdb_path}")
 

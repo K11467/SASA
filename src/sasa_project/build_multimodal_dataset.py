@@ -2,6 +2,7 @@ import argparse
 import csv
 from pathlib import Path
 
+from .io_utils import read_csv_dicts
 from .paths import PROCESSED_DATA_DIR
 from .residue_features import (
     extract_structural_features,
@@ -17,15 +18,12 @@ def load_embeddings(path):
     if not Path(path).exists():
         return {}
 
-    with open(path) as f:
-        rows = list(csv.DictReader(f))
-
+    rows = read_csv_dicts(path)
     return {row["sample_id"]: row for row in rows}
 
 
 def load_manifest(path):
-    with open(path) as f:
-        rows = list(csv.DictReader(f))
+    rows = read_csv_dicts(path)
     return {
         (row["pdb_id"], row["target_chain"], row["partner_chain"]): row
         for row in rows
@@ -71,8 +69,7 @@ def main():
 
     label_column = f"label_gt_{args.label_threshold:g}"
 
-    with open(args.labels) as f:
-        label_rows = list(csv.DictReader(f))
+    label_rows = read_csv_dicts(args.labels)
     if not label_rows:
         raise ValueError(f"Label table is empty: {args.labels}")
     if label_column not in label_rows[0]:

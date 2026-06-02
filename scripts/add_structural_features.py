@@ -7,7 +7,11 @@
     python scripts/add_structural_features.py \
         --input  data/processed/multimodal_residue_dataset_650m.csv \
         --manifest data/processed/complex_manifest.csv \
-        --output data/processed/multimodal_residue_dataset_650m_struct.csv
+        --output data/processed/multimodal_residue_dataset_with_struct.csv
+
+兼容说明:
+    当前 build_multimodal_dataset.py 已直接写入结构特征。新流程无需运行本脚本。
+    本脚本仅用于为历史 CSV 补列。
 """
 
 import argparse
