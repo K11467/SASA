@@ -215,3 +215,59 @@ return self.classifier(h).squeeze(-1)
 | 公式 (5) 跨链注意力 | 与论文一致,$\sigma$ 以 `log_sigma` 参数化并裁剪 | 保证 $\sigma>0$ 且范围合理 |
 
 > 这些差异都是**工程化的数值稳定性增强**,不改变模型的等变性与几何语义。若撰写论文方法部分,建议把公式 (2) 的 $\lVert\cdot\rVert^2$ 与代码统一(改为 $\lVert\cdot\rVert$ 或在代码中改回平方),避免审稿人质疑。
+
+---
+
+## 七、坐标与结构特征计算细节(常见审稿问题)
+
+以下两点是审稿/答辩时容易被追问的实现细节,在此明确说明,均可在
+[`src/sasa_project/residue_features.py`](../src/sasa_project/residue_features.py) 中核对。
+
+### 7.1 残基节点坐标:Cα 坐标 vs 全原子质心?
+
+**默认使用 Cα 坐标;仅当残基缺失 Cα 原子时,才退化为该残基全原子的几何质心。**
+
+代码 `residue_coordinate`([residue_features.py:100](../src/sasa_project/residue_features.py#L100)):
+```python
+def residue_coordinate(residue):
+    atoms = residue["atoms"]
+    ca_atoms = [atom for atom in atoms if atom.atom_name == "CA"]
+    selected_atoms = ca_atoms if ca_atoms else atoms   # 有 CA 用 CA，否则用全部原子
+    x = sum(a.x for a in selected_atoms) / len(selected_atoms)
+    y = sum(a.y for a in selected_atoms) / len(selected_atoms)
+    z = sum(a.z for a in selected_atoms) / len(selected_atoms)
+    return x, y, z
+```
+
+- **正常残基**:每个标准氨基酸只有一个 Cα,对单元素列表求平均即 **Cα 坐标本身** → 等变图建模用的是**单纯 Cα 坐标**。
+- **退化兜底**:残基无 Cα(罕见,如不完整结构)时,回退为**全原子质心(Center of Mass / 几何平均)**,保证坐标不缺失。
+- §3.6 跨链注意力的伙伴链坐标 $q_j$ 走同一函数,因此目标链与伙伴链坐标定义**一致**(均为 Cα)。
+
+> 一句话回答:**不是全原子质心建模;用的是 Cα 坐标,质心只是无 Cα 时的兜底。**
+
+### 7.2 HSE(半球暴露度)的邻居半径阈值?
+
+**使用固定半径球邻域,半径 `radius = 13.0` Å,基于 Cα–Cα 欧氏距离统计,不是图邻接关系。**
+
+代码 `compute_hse_alpha`([residue_features.py:218](../src/sasa_project/residue_features.py#L218),标准 HSE-α / Hamelryck 2005):
+```python
+def compute_hse_alpha(residues, radius=13.0):
+    ...
+    for j in range(n):                       # 对每个其他残基
+        dist = _norm3(_sub(ca_coords[j], ca_coords[i]))
+        if dist > radius: continue           # 仅统计 13Å 球内的 Cα
+        projection = _dot3(diff, v_ref)      # 在参考向量上的投影
+        if projection > 0: hse_up += 1       # 上半球邻居数
+        else:              hse_dn += 1       # 下半球邻居数
+```
+
+- **邻居判定**:以残基 $i$ 的 **Cα 为球心、半径 13 Å** 的球,统计球内其他残基 Cα 的数量。
+- **上/下半球划分**:参考向量 $v_{ref}=\mathrm{CA}(i)-\mathrm{CA}(i-1)$(无前驱则用 $\mathrm{CA}(i+1)-\mathrm{CA}(i)$);邻居在 $v_{ref}$ 方向投影 $>0$ 计入 `hse_up`,否则计入 `hse_dn`。
+- 输出两维特征 `hse_up` / `hse_dn`,经 [`build_multimodal_dataset.py`](../src/sasa_project/build_multimodal_dataset.py) 写入多模态数据集,作为残基节点特征 $h$ 的一部分。
+
+> **重要区分**:HSE 的 13 Å 球邻域,与 §3.5 EGNN 图构建的截止半径 $r\in\{6,8,10,12\}$ Å 是**两套独立机制** —— 前者用于构造输入结构特征(标量,不变量),后者用于定义消息传递的图连边。二者不要混淆。
+
+| 机制 | 半径 | 用途 | 配置项 |
+|---|---|---|---|
+| HSE-α 球邻域 | **13 Å(固定)** | 输入结构特征(hse_up/hse_dn) | `compute_hse_alpha(radius=13.0)` |
+| EGNN 图边 | 6/8/10/12 Å(可调) | 消息传递的邻接 | `distance_cutoff` / `d6..d12` |
