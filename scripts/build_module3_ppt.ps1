@@ -1,16 +1,18 @@
 param(
     [string]$InputPptm = "D:\appData\weiXin\xwechat_files\wxid_0ba8c32vmkmv22_0828\msg\file\2026-06\SASA_PPI_module2_method_pages.pptm",
-    [string]$OutputPptm = "D:\courseProject\code\SASAGpu\paper\SASA_PPI_module2_module3_method_pages.pptm"
+    [string]$OutputPptm = "D:\courseProject\code\SASAGpu\paper\SASA_PPI_module2_module3_visual.pptx"
 )
 
 $ErrorActionPreference = "Stop"
 
 $ppLayoutBlank = 12
 $ppSaveAsOpenXMLPresentationMacroEnabled = 25
+$ppSaveAsOpenXMLPresentation = 24
 $msoShapeRectangle = 1
 $msoShapeRoundedRectangle = 5
 $msoShapeChevron = 52
 $msoShapeOval = 9
+$msoShapeLine = 9
 $msoTextOrientationHorizontal = 1
 
 $navy = 0x604F0E
@@ -127,6 +129,27 @@ function Add-MetricBar($slide, [double]$left, [double]$top, [double]$width, [str
 function Add-TableCell($slide, [double]$left, [double]$top, [double]$width, [double]$height, [string]$text, [int]$fill, [int]$textColor, [bool]$bold = $false, [int]$align = 1) {
     Add-Rect $slide $left $top $width $height $fill $white | Out-Null
     Add-Text $slide ($left + 6) ($top + 7) ($width - 12) ($height - 10) $text 10 $textColor $bold "Aptos" $align | Out-Null
+}
+
+function Add-Line($slide, [double]$x1, [double]$y1, [double]$x2, [double]$y2, [int]$color, [double]$weight = 2) {
+    $shape = $slide.Shapes.AddLine($x1, $y1, $x2, $y2)
+    Set-Line $shape $color $weight
+    return $shape
+}
+
+function Add-CircleNode($slide, [double]$left, [double]$top, [double]$size, [string]$label, [string]$body, [int]$fill) {
+    $circle = $slide.Shapes.AddShape($msoShapeOval, $left, $top, $size, $size)
+    Set-Fill $circle $fill
+    $circle.Line.Visible = 0
+    Add-Text $slide ($left + 8) ($top + 17) ($size - 16) 24 $label 16 $white $true "Aptos Display" 2 | Out-Null
+    Add-Text $slide ($left - 32) ($top + $size + 13) ($size + 64) 42 $body 11 $navy $true "Aptos" 2 | Out-Null
+}
+
+function Add-StatCard($slide, [double]$left, [double]$top, [double]$width, [double]$height, [string]$label, [string]$value, [string]$note, [int]$fill) {
+    Add-Rect $slide $left $top $width $height $fill $fill $true | Out-Null
+    Add-Text $slide ($left + 18) ($top + 16) ($width - 36) 22 $label 11 $lightTeal $true "Aptos" 2 | Out-Null
+    Add-Text $slide ($left + 18) ($top + 42) ($width - 36) 48 $value 31 $white $true "Aptos Display" 2 | Out-Null
+    Add-Text $slide ($left + 18) ($top + 93) ($width - 36) 38 $note 11 $lightTeal $false "Aptos" 2 | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $InputPptm)) {

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SASA-ESM Pipeline</title>
+<style>
+  :root{
+    --teal:#14505c;          /* primary deep teal */
+    --teal-ink:#0e3a44;      /* darkest text */
+    --teal-soft:#d8e8e8;     /* light fill */
+    --teal-mid:#3f8e93;      /* secondary */
+    --orange:#e2622c;        /* accent */
+    --orange-soft:#fbe7dd;   /* accent fill */
+    --grey:#5b6b6e;          /* muted caption */
+    --line:#e3eaea;
+    --card-bd:#cdddde;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#aeb6b8;}
+  body{
+    font-family:"Segoe UI","Lato","Helvetica Neue",Arial,sans-serif;
+    display:flex;justify-content:center;align-items:center;min-height:100vh;
+  }
+  /* 16:9 slide */
+  .slide{
+    width:1280px;height:720px;background:#ffffff;position:relative;
+    padding:46px 56px 30px;display:flex;flex-direction:column;
+    box-shadow:0 18px 60px rgba(0,0,0,.25);
+  }
+  /* ---- header ---- */
+  .eyebrow{display:flex;align-items:center;gap:12px;font-size:18px;font-weight:700;
+    letter-spacing:.4px;color:var(--teal);}
+  .eyebrow .dot{width:16px;height:16px;border-radius:50%;background:var(--orange);}
+  .eyebrow .sep{color:var(--orange);font-weight:700;}
+  h1{font-size:42px;line-height:1.08;color:var(--teal-ink);font-weight:800;
+    margin-top:14px;letter-spacing:-.5px;}
+  .accent-bar{width:120px;height:5px;background:var(--orange);border-radius:3px;margin-top:16px;}
+
+  /* ---- pipeline row ---- */
+  .flow{flex:1;display:flex;align-items:stretch;gap:0;margin-top:26px;}
+  .card{
+    flex:1;border:1.6px solid var(--card-bd);border-radius:16px;
+    padding:18px 16px 16px;position:relative;display:flex;flex-direction:column;
+    background:#ffffff;
+  }
+  .card .badge{
+    position:absolute;top:-16px;left:18px;width:34px;height:34px;border-radius:50%;
+    background:var(--teal);color:#fff;font-weight:800;font-size:17px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 3px 8px rgba(20,80,92,.35);
+  }
+  .card h2{font-size:17px;line-height:1.2;color:var(--teal-ink);font-weight:800;
+    margin-top:8px;min-height:62px;display:flex;align-items:flex-start;}
+  .art{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 0;}
+  .art svg{display:block;max-width:100%;height:auto;}
+  .divider{height:1.4px;background:var(--line);margin:6px 0 10px;border-radius:2px;
+    border-top:0;border-bottom:1.4px dashed var(--teal-mid);background:none;}
+  .cap{font-size:12.5px;color:var(--grey);line-height:1.35;text-align:center;}
+  .cap b{color:var(--teal);}
+  .cap .formula{font-family:"Cambria Math",Georgia,serif;color:var(--teal-ink);
+    font-size:13.5px;display:block;margin-bottom:4px;}
+  .cap .formula .o{color:var(--orange);}
+
+  .tag{display:inline-block;margin-top:7px;font-size:10.5px;font-weight:700;
+    color:var(--orange);background:var(--orange-soft);border-radius:20px;
+    padding:3px 9px;letter-spacing:.3px;}
+
+  /* arrows between cards */
+  .arrow{width:34px;display:flex;align-items:center;justify-content:center;flex:0 0 34px;}
+  .arrow svg{width:26px;height:26px;}
+
+  /* ---- legend ---- */
+  .legend{display:flex;align-items:center;gap:26px;margin-top:20px;
+    padding-top:14px;border-top:1.4px solid var(--line);flex-wrap:wrap;}
+  .leg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--grey);}
+  .leg b{color:var(--teal-ink);font-weight:800;}
+  .leg .chip{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;
+    justify-content:center;flex:0 0 20px;}
+  .node-dot{width:13px;height:13px;border-radius:50%;background:var(--teal-mid);}
+  .edge-solid{width:22px;height:0;border-top:2.4px solid var(--teal);}
+  .edge-dash{width:22px;height:0;border-top:2.4px dashed var(--orange);}
+</style>
+</head>
+<body>
+  <div class="slide">
+    <!-- header -->
+    <div class="eyebrow"><span class="dot"></span>02<span class="sep">·</span>Method&nbsp;Pipeline</div>
+    <h1>From a PDB complex to per-residue interface prediction</h1>
+    <div class="accent-bar"></div>
+
+    <!-- pipeline -->
+    <div class="flow">
+
+      <!-- 1 PDB input -->
+      <div class="card">
+        <div class="badge">1</div>
+        <h2>PDB&nbsp;complex<br>input</h2>
+        <div class="art">
+          <svg viewBox="0 0 120 100" width="120">
+            <!-- doc -->
+            <rect x="14" y="10" width="62" height="80" rx="7" fill="#eef5f5" stroke="#14505c" stroke-width="2.2"/>
+            <rect x="14" y="58" width="62" height="32" rx="7" fill="#14505c"/>
+            <text x="45" y="80" text-anchor="middle" font-family="Segoe UI" font-size="15" font-weight="800" fill="#fff">PDB</text>
+            <line x1="24" y1="24" x2="58" y2="24" stroke="#9cc0c0" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="24" y1="34" x2="64" y2="34" stroke="#9cc0c0" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="24" y1="44" x2="50" y2="44" stroke="#9cc0c0" stroke-width="2.4" stroke-linecap="round"/>
+            <!-- mini helix -->
+            <path d="M86 22 q12 8 0 16 q-12 8 0 16 q12 8 0 16" fill="none" stroke="#e2622c" stroke-width="3" stroke-linecap="round"/>
+            <path d="M86 22 q-12 8 0 16 q12 8 0 16 q-12 8 0 16" fill="none" stroke="#3f8e93" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="divider"></div>
+        <div class="cap">3D protein complex<br><b>chains parsed to atoms</b></div>
+      </div>
+
+      <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12h15m0 0l-6-6m6 6l-6 6" fill="none" stroke="#e2622c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+      <!-- 2 SASA calculator -->
+      <div class="card">
+        <div class="badge">2</div>
+        <h2>Self-developed<br>SASA calculator</h2>
+        <div class="art">
+          <svg viewBox="0 0 120 100" width="120">
+            <!-- sphere with dots (Shrake-Rupley) -->
+            <circle cx="60" cy="50" r="34" fill="#d8e8e8" stroke="#14505c" stroke-width="2.2"/>
+            <g fill="#14505c">
+              <circle cx="60" cy="16" r="2.4"/><circle cx="78" cy="22" r="2.4"/>
+              <circle cx="90" cy="38" r="2.4"/><circle cx="94" cy="56" r="2.4"/>
+              <circle cx="84" cy="74" r="2.4"/><circle cx="66" cy="84" r="2.4"/>
+              <circle cx="46" cy="84" r="2.4"/><circle cx="30" cy="72" r="2.4"/>
+              <circle cx="26" cy="54" r="2.4"/><circle cx="28" cy="36" r="2.4"/>
+              <circle cx="42" cy="22" r="2.4"/>
+            </g>
+            <circle cx="60" cy="50" r="13" fill="#e2622c"/>
+          </svg>
+        </div>
+        <div class="divider"></div>
+        <div class="cap"><b>Shrake&ndash;Rupley</b> dot sampling<br>atom &rarr; residue &rarr; chain SASA</div>
+      </div>
+
+      <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12h15m0 0l-6-6m6 6l-6 6" fill="none" stroke="#e2622c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+      <!-- 3 dSASA labels -->
+      <div class="card">
+        <div class="badge">3</div>
+        <h2>&Delta;SASA weak-label<br>generation</h2>
+        <div class="art">
+          <svg viewBox="0 0 130 100" width="130">
+            <!-- apo blob -->
+            <circle cx="34" cy="46" r="26" fill="#d8e8e8" stroke="#3f8e93" stroke-width="2.2"/>
+            <text x="34" y="84" text-anchor="middle" font-family="Segoe UI" font-size="12" font-weight="800" fill="#3f8e93">apo</text>
+            <!-- vs -->
+            <text x="65" y="50" text-anchor="middle" font-family="Segoe UI" font-size="12" font-weight="700" fill="#5b6b6e">vs</text>
+            <!-- holo blob + partner -->
+            <circle cx="96" cy="46" r="26" fill="#d8e8e8" stroke="#14505c" stroke-width="2.2"/>
+            <path d="M108 36 l9 -6 m-9 6 l9 6 m-9 -6 l-7 -4 m7 4 l-2 9" fill="none" stroke="#e2622c" stroke-width="2.6" stroke-linecap="round"/>
+            <circle cx="117" cy="30" r="3" fill="#e2622c"/><circle cx="117" cy="42" r="3" fill="#e2622c"/><circle cx="99" cy="55" r="3" fill="#e2622c"/>
+            <text x="96" y="84" text-anchor="middle" font-family="Segoe UI" font-size="12" font-weight="800" fill="#14505c">holo</text>
+          </svg>
+        </div>
+        <div class="divider"></div>
+        <div class="cap">
+          <span class="formula">&Delta;SASA = SASA<sub>apo</sub> &minus; SASA<sub>holo</sub></span>
+          per-residue binary label
+          <span class="tag">labels only &middot; no leakage</span>
+        </div>
+      </div>
+
+      <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12h15m0 0l-6-6m6 6l-6 6" fill="none" stroke="#e2622c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+      <!-- 4 multimodal features -->
+      <div class="card">
+        <div class="badge">4</div>
+        <h2>Multi-modal<br>residue features</h2>
+        <div class="art">
+          <svg viewBox="0 0 140 100" width="140">
+            <!-- feature matrix -->
+            <g stroke="#ffffff" stroke-width="1.6">
+              <!-- ESM block (teal shades) -->
+              <rect x="14" y="20" width="14" height="13" fill="#9cc0c0"/><rect x="28" y="20" width="14" height="13" fill="#5e9a9f"/><rect x="42" y="20" width="14" height="13" fill="#3f8e93"/>
+              <rect x="14" y="33" width="14" height="13" fill="#5e9a9f"/><rect x="28" y="33" width="14" height="13" fill="#3f8e93"/><rect x="42" y="33" width="14" height="13" fill="#9cc0c0"/>
+              <rect x="14" y="46" width="14" height="13" fill="#3f8e93"/><rect x="28" y="46" width="14" height="13" fill="#9cc0c0"/><rect x="42" y="46" width="14" height="13" fill="#5e9a9f"/>
+              <rect x="14" y="59" width="14" height="13" fill="#9cc0c0"/><rect x="28" y="59" width="14" height="13" fill="#5e9a9f"/><rect x="42" y="59" width="14" height="13" fill="#3f8e93"/>
+              <!-- geometry block (orange shades) -->
+              <rect x="60" y="20" width="14" height="13" fill="#f1a981"/><rect x="74" y="20" width="14" height="13" fill="#e2622c"/>
+              <rect x="60" y="33" width="14" height="13" fill="#e2622c"/><rect x="74" y="33" width="14" height="13" fill="#f1a981"/>
+              <rect x="60" y="46" width="14" height="13" fill="#f1a981"/><rect x="74" y="46" width="14" height="13" fill="#e2622c"/>
+              <rect x="60" y="59" width="14" height="13" fill="#e2622c"/><rect x="74" y="59" width="14" height="13" fill="#f1a981"/>
+            </g>
+            <text x="94" y="32" font-family="Segoe UI" font-size="13" font-weight="800" fill="#5b6b6e">&hellip;</text>
+            <text x="94" y="58" font-family="Segoe UI" font-size="13" font-weight="800" fill="#5b6b6e">&hellip;</text>
+            <!-- labels -->
+            <text x="35" y="14" text-anchor="middle" font-family="Segoe UI" font-size="9.5" font-weight="800" fill="#3f8e93">ESM-2</text>
+            <text x="74" y="14" text-anchor="middle" font-family="Segoe UI" font-size="9.5" font-weight="800" fill="#e2622c">geometry</text>
+            <text x="9" y="48" text-anchor="middle" font-family="Segoe UI" font-size="9" font-weight="700" fill="#5b6b6e" transform="rotate(-90 9 48)">N residues</text>
+          </svg>
+        </div>
+        <div class="divider"></div>
+        <div class="cap">
+          <span class="formula">X &isin; &#8477;<sup>N&times;d</sup></span>
+          1280-d ESM-2 &#8853; dihedral / HSE / hydrophobicity
+        </div>
+      </div>
+
+      <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12h15m0 0l-6-6m6 6l-6 6" fill="none" stroke="#e2622c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+      <!-- 5 EGNN -->
+      <div class="card">
+        <div class="badge">5</div>
+        <h2>Structure-aware<br>EGNN prediction</h2>
+        <div class="art">
+          <svg viewBox="0 0 130 100" width="130">
+            <!-- edges -->
+            <g stroke="#14505c" stroke-width="2">
+              <line x1="30" y1="28" x2="64" y2="20"/><line x1="64" y1="20" x2="98" y2="34"/>
+              <line x1="30" y1="28" x2="50" y2="56"/><line x1="50" y1="56" x2="64" y2="20"/>
+              <line x1="50" y1="56" x2="84" y2="64"/><line x1="84" y1="64" x2="98" y2="34"/>
+              <line x1="50" y1="56" x2="40" y2="84"/><line x1="84" y1="64" x2="92" y2="86"/>
+            </g>
+            <!-- equivariant coord-update arcs -->
+            <g stroke="#e2622c" stroke-width="2" stroke-dasharray="3 3" fill="none">
+              <path d="M104 30 q12 6 6 18"/><path d="M22 30 q-10 8 -4 20"/>
+            </g>
+            <!-- nodes -->
+            <g fill="#3f8e93" stroke="#fff" stroke-width="1.6">
+              <circle cx="30" cy="28" r="8"/><circle cx="64" cy="20" r="8"/>
+              <circle cx="98" cy="34" r="8"/><circle cx="84" cy="64" r="8"/>
+              <circle cx="40" cy="84" r="8"/><circle cx="92" cy="86" r="8"/>
+            </g>
+            <!-- predicted interface node -->
+            <circle cx="50" cy="56" r="9.5" fill="#e2622c" stroke="#fff" stroke-width="1.8"/>
+          </svg>
+        </div>
+        <div class="divider"></div>
+        <div class="cap">kNN graph + equivariant<br>coordinate updates<br><b>per-residue interface probability</b></div>
+      </div>
+
+    </div>
+
+    <!-- legend -->
+    <div class="legend">
+      <div class="leg"><span class="chip" style="background:#d8e8e8;"></span><span><b>SASA</b> Solvent Accessible Surface Area</span></div>
+      <div class="leg"><span class="chip" style="background:var(--orange-soft);color:#e2622c;font-weight:800;font-size:11px;">&Delta;</span><span><b>&Delta;SASA</b> SASA<sub>apo</sub> &minus; SASA<sub>holo</sub></span></div>
+      <div class="leg"><span class="node-dot"></span><span><b>ESM-2</b> protein language model</span></div>
+      <div class="leg"><span class="edge-solid"></span><span><b>EGNN</b> equivariant graph net &middot; spatial edge</span></div>
+      <div class="leg"><span class="edge-dash"></span><span>coordinate update (equivariant)</span></div>
+    </div>
+  </div>
+</body>
+</html>
